@@ -1,0 +1,12 @@
+/_*
+/*.sln.*
+/*.suo
+/*.saved
+/*.cmd
+
+bin/
+obj/
+packages/
+
+*.user
+*.dotCover
