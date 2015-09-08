@@ -20,7 +20,7 @@ namespace PackageRunner
         {
             lock (_lock)
             {
-                File.AppendAllText(_file, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " " + text);
+                File.AppendAllText(_file, DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss") + " " + text + Environment.NewLine);
                 Debug.WriteLine(text);
             }
         }
