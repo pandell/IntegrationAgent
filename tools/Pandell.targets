@@ -1,0 +1,827 @@
+<!--
+
+Pandell common targets file
+
+Note: MSBuild property functions are used throughout
+    this file. A very useful guide to property functions
+    can be found here: http://blogs.msdn.com/b/visualstudio/archive/2010/04/02/msbuild-property-functions.aspx
+
+Note: By convention, all properties whose name ends
+    with "Dir" should always contain a trailing path separator
+    (e.g. "SolutionDir", "BuildOutputDir", etc)
+
+-->
+<Project ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <!--
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Initialization
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+    <PropertyGroup>
+        <SolutionDir Condition=" '$(SolutionDir)' == '' ">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\'))</SolutionDir>
+        <SolutionDir Condition=" !HasTrailingSlash('$(SolutionDir)') ">$(SolutionDir)\</SolutionDir>
+        <BuildOutputDir Condition=" '$(BuildOutputDir)' == '' ">$(SolutionDir)build\</BuildOutputDir>
+        <BuildOutputDir Condition=" !HasTrailingSlash('$(BuildOutputDir)') ">$(BuildOutputDir)\</BuildOutputDir>
+
+        <NUnitParams Condition=" '$(NUnitParams)' == '' ">/nologo /noshadow /nodots /nothread /domain=Multiple /framework=net-4.0</NUnitParams>
+        <NUnitExecutable Condition=" '$(NUnitExecutable)'=='' ">nunit-console.exe</NUnitExecutable>
+
+        <AssemblyVersionInfoPath Condition=" '$(AssemblyVersionInfoPath)' == '' ">src/AssemblyVersionInfo.cs</AssemblyVersionInfoPath>
+    </PropertyGroup>
+    <ItemGroup>
+        <ConfigurationList Condition=" '@(ConfigurationList)' == '' and '$(Configurations)' != '' " Include="$(Configurations.Split('+;'))" />
+        <ConfigurationList Condition=" '@(ConfigurationList)' == '' " Include="Debug" />
+    </ItemGroup>
+    <!--
+
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Public targets
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+    <!--
+
+    Find directory that contains PLI tools, saved
+    into "ToolsDir" (DevTool, PRun, etc) -->
+    <PropertyGroup>
+        <FindToolsDirDependsOn>_FindToolsDirNow</FindToolsDirDependsOn>
+    </PropertyGroup>
+    <Target Name="FindToolsDir" Condition=" '$(ToolsDir)' == '' " DependsOnTargets="$(FindToolsDirDependsOn)" />
+    <Target Name="_FindToolsDirNow" Condition=" '$(ToolsDir)' == '' " DependsOnTargets="RestoreSolutionPackages">
+        <FindMatchingDirectory Path="$(SolutionDir)nuget_modules" Pattern="Pandell.Pli.Tools.*">
+            <Output TaskParameter="Dir" PropertyName="ToolsDir" />
+        </FindMatchingDirectory>
+        <PropertyGroup>
+            <ToolsDir>$(ToolsDir)tools\</ToolsDir>
+        </PropertyGroup>
+    </Target>
+    <!--
+
+    Start PLI DevTool -->
+    <PropertyGroup>
+        <LaunchDevToolDependsOn>FindToolsDir</LaunchDevToolDependsOn>
+    </PropertyGroup>
+    <Target Name="LaunchPliDevTool" DependsOnTargets="$(LaunchDevToolDependsOn)">
+        <StartProcess Executable="$(ToolsDir)PliDevTool.exe" Arguments="--config_dir &quot;$(SolutionDir)src&quot; --probing_depth &quot;.:1&quot; $(DevToolExtraArguments)" />
+    </Target>
+    <!--
+
+    Generate client configuration files from the specified
+    file for the specified environment.
+
+    Parameters:
+
+    GenerateConfigForSite (item, optional) - list of paths
+        to sites for which to generate configuration. If
+        not specified, defaults to directories matching
+        "$(BuildOutputDir)%(ConfigurationList.Identity)\Site-*",
+        excluding "$(BuildOutputDir)%(ConfigurationList.Identity)\*-Config"
+        (for this default to work, GenerateConfig target
+        should be preceded by ExportWebapp target).
+    GenerateConfigForSites (string, optional) - list of paths
+        to sites for which to generate configuration as
+        a semicolon or "+" separated list; useful when passing
+        multiple sites to this target from a script (e.g. TeamCity).
+    GenerateConfigTargetEnvironment (string, optional) -
+        default target environment for which to generate
+        configuration files, can be overridden per-site by
+        %(GenerateConfigForSite.TargetEnvironment).
+    GenerateConfigClientDbFile (string, optional) -
+        default path to the client database (Excel spreadsheet),
+        can be overridden per-site by %(GenerateConfigForSite.ClientDbFile).
+    GenerateConfigOverrides (string, optional) - semicolon-or-
+        colon-separated list of values that will override all definitions
+        in client DB file; example: "json.one=1;json.two=2";
+        can be overridden per-site by %(GenerateConfigForSite.Overrides). -->
+    <PropertyGroup>
+        <GenerateConfigDependsOn>_GenerateConfigFindSites;FindToolsDir</GenerateConfigDependsOn>
+    </PropertyGroup>
+    <Target Name="GenerateConfig" DependsOnTargets="$(GenerateConfigDependsOn)">
+        <Error Condition=" '@(GenerateConfigForSite)' == '' " Text="No sites to generate config for (did you include GenerateConfigForSite items?)" />
+        <MSBuild
+            Projects="$(MSBuildThisFileFullPath)"
+            Targets="_GenerateConfigRun"
+            Properties="
+                SolutionDir=$(SolutionDir);
+                BuildOutputDir=$(BuildOutputDir);
+                GenerateConfigRunTool=$(ToolsDir)ClientConfigGen.exe;
+                GenerateConfigRunDir=%(GenerateConfigForSite.Identity)-Config;
+                GenerateConfigRunEnv=%(GenerateConfigForSite.TargetEnvironment);
+                GenerateConfigRunDefaultEnv=$(GenerateConfigTargetEnvironment);
+                GenerateConfigRunDb=%(GenerateConfigForSite.ClientDbFile);
+                GenerateConfigRunDefaultDb=$(GenerateConfigClientDbFile);
+                GenerateConfigRunOverrides=%(GenerateConfigForSite.Overrides);
+                GenerateConfigRunDefaultOverrides=$(GenerateConfigOverrides)" />
+    </Target>
+    <Target Name="_GenerateConfigFindSites">
+        <ItemGroup>
+            <GenerateConfigForSite Condition=" '@(GenerateConfigForSite)' == '' and '$(GenerateConfigForSites)' != '' " Include="$(GenerateConfigForSites.Split('+;'))" />
+            <GenerateConfigForSite Condition=" '@(GenerateConfigForSite)' == '' "
+                Include="$([System.IO.Directory]::GetDirectories('$(BuildOutputDir)%(ConfigurationList.Identity)', 'Site-*'))"
+                Exclude="$([System.IO.Directory]::GetDirectories('$(BuildOutputDir)%(ConfigurationList.Identity)', '*-Config'))" />
+        </ItemGroup>
+    </Target>
+    <Target Name="_GenerateConfigRun">
+        <PropertyGroup>
+            <GenerateConfigRunEnv Condition=" '$(GenerateConfigRunEnv)' == '' ">$(GenerateConfigRunDefaultEnv)</GenerateConfigRunEnv>
+            <GenerateConfigRunDb Condition=" '$(GenerateConfigRunDb)' == '' ">$(GenerateConfigRunDefaultDb)</GenerateConfigRunDb>
+            <GenerateConfigRunOverrides Condition=" '$(GenerateConfigRunOverrides)' == '' ">$(GenerateConfigRunDefaultOverrides)</GenerateConfigRunOverrides>
+        </PropertyGroup>
+        <RemoveDir Condition=" Exists('$(GenerateConfigRunDir)') " Directories="$(GenerateConfigRunDir)" />
+        <Exec
+            Command="&quot;$(GenerateConfigRunTool)&quot; --environment &quot;$(GenerateConfigRunEnv)&quot; --outputDir &quot;$(GenerateConfigRunDir)&quot; --name &quot;{0}/{2}.json&quot; --define &quot;$(GenerateConfigRunOverrides)&quot; &quot;$(GenerateConfigRunDb)&quot;"
+            WorkingDirectory="$(SolutionDir)" />
+    </Target>
+    <!--
+
+    Extract materials for unit tests
+
+    Parameters:
+
+    ExtractMaterialsDatabase (string, no default, required) -
+        PliCmd-style database specification (connection string)
+        from which to extract materials.
+    ExtractMaterialsOutputDir (string, no default, required) -
+        output directory for extraction. -->
+    <PropertyGroup>
+        <ExtractMaterialsDependsOn>FindToolsDir</ExtractMaterialsDependsOn>
+    </PropertyGroup>
+    <Target Name="ExtractMaterials" DependsOnTargets="$(ExtractMaterialsDependsOn)">
+        <Error Condition=" '$(ExtractMaterialsDatabase)' == '' " Text="Required parameter ExtractMaterialsDatabase has not been defined" />
+        <Error Condition=" '$(ExtractMaterialsOutputDir)' == '' " Text="Required parameter ExtractMaterialsOutputDir has not been defined" />
+        <Exec Command="&quot;$(ToolsDir)PliCmd.exe&quot; -d &quot;$(ExtractMaterialsDatabase)&quot; -e MaterialCacheAsDataSetXml -o &quot;$(ExtractMaterialsOutputDir).&quot;" IgnoreExitCode="False" IgnoreStandardErrorWarningFormat="True" />
+    </Target>
+    <!--
+
+    Extract lifecycle trees for unit tests
+
+    Parameters:
+
+    ExtractLifecyclesDatabase (string, no default, required) -
+        PliCmd-style database specification (connection string)
+        from which to extract lifecycle trees.
+    ExtractLifecyclesOutputDir (string, no default, required) -
+        output directory for extraction. -->
+    <PropertyGroup>
+        <ExtractLifecyclesDependsOn>FindToolsDir</ExtractLifecyclesDependsOn>
+    </PropertyGroup>
+    <Target Name="ExtractLifecycles" DependsOnTargets="$(ExtractLifecyclesDependsOn)">
+        <Error Condition=" '$(ExtractLifecyclesDatabase)' == '' " Text="Required parameter ExtractLifecyclesDatabase has not been defined" />
+        <Error Condition=" '$(ExtractLifecyclesOutputDir)' == '' " Text="Required parameter ExtractLifecyclesOutputDir has not been defined" />
+        <Exec Command="&quot;$(ToolsDir)PliCmd.exe&quot; -d &quot;$(ExtractLifecyclesDatabase)&quot; -e RawLifecycleAsDataSetXml -o &quot;$(ExtractLifecyclesOutputDir).&quot;" IgnoreExitCode="False" IgnoreStandardErrorWarningFormat="True" />
+    </Target>
+    <!--
+
+    Generate query classes
+
+    Parameters:
+
+    GenerateQueryClassesConnection (string, no default, required) -
+        connection string for database for which
+        to generate query classes
+    GenerateQueryClassesNamespace (string, no default, required) -
+        namespace in which query classes will
+        be generated
+    GenerateQueryClassesRoot (string, no default, required) -
+        name of root query class that will
+        be generated
+    GenerateQueryClassesTargetDir (string, no default, required) -
+        target directory for generator -->
+    <PropertyGroup>
+        <GenerateQueryClassesDependsOn>FindToolsDir</GenerateQueryClassesDependsOn>
+    </PropertyGroup>
+    <Target Name="GenerateQueryClasses" DependsOnTargets="$(GenerateQueryClassesDependsOn)">
+        <Error Condition=" '$(GenerateQueryClassesConnection)' == '' " Text="Required parameter GenerateQueryClassesConnection has not been defined" />
+        <Error Condition=" '$(GenerateQueryClassesNamespace)' == '' " Text="Required parameter GenerateQueryClassesNamespace has not been defined" />
+        <Error Condition=" '$(GenerateQueryClassesRoot)' == '' " Text="Required parameter GenerateQueryClassesRoot has not been defined" />
+        <Error Condition=" '$(GenerateQueryClassesTargetDir)' == '' " Text="Required parameter GenerateQueryClassesTargetDir has not been defined" />
+        <Exec Command="&quot;$(ToolsDir)PliCmd.exe&quot; --Export QueryClasses --Namespace $(GenerateQueryClassesNamespace) --ClassName $(GenerateQueryClassesRoot) --Database &quot;$(GenerateQueryClassesConnection)&quot; --Output &quot;$(GenerateQueryClassesTargetDir).&quot;" IgnoreExitCode="False" IgnoreStandardErrorWarningFormat="True" />
+    </Target>
+    <!--
+
+    Export all webapps into a target directory
+    (content + binaries, ready for deployment;
+    exported to "$(BuiltOutputDir)%(ConfigurationList.Identity)\Site-[WebappAssemblyName]".
+
+    Parameters:
+
+    ExportWebappProject (item, optional)
+        List of webapps to export (their project files).
+        If not specified, deafaults to files matching
+        "$(SolutionDir)src\*Web\*.csproj".
+    ExportWebappProjects (string, optional) - list of webapps
+        to export as a semicolon or "+" separated list;
+        useful when passing multiple sites to this target
+        from a script (e.g. TeamCity).
+    ExportWebappSkipBuild (boolean, optional, defaults to 0)
+        Flag that indicates whether webapp projects should
+        be built before export (0) or are already built (1).
+        Note: if you're skipping build, you should only
+        specify a single configuration (because exported
+        webapps will not be rebuilt, i.e. exports for all
+        configurations will be identical). -->
+    <PropertyGroup>
+        <ExportWebappDependsOn>_ExportWebappFindProjects</ExportWebappDependsOn>
+    </PropertyGroup>
+    <Target Name="ExportWebapp" DependsOnTargets="$(ExportWebappDependsOn)">
+        <Error Condition=" '@(ExportWebappProject)' == '' " Text="No exportable projects found (did you include ExportWebappProject items?)" />
+        <PropertyGroup>
+            <ExportWebappConfigs>@(ConfigurationList)</ExportWebappConfigs>
+        </PropertyGroup>
+        <MSBuild
+            Projects="$(MSBuildThisFileFullPath)"
+            Targets="_ExportWebappRun"
+            Properties="
+                SolutionDir=$(SolutionDir);
+                BuildOutputDir=$(BuildOutputDir);
+                Configurations=$(ExportWebappConfigs);
+                ExportWebappRunTargetProjectDir=%(ExportWebappProject.RelativeDir);
+                ExportWebappRunTargetProjectName=%(ExportWebappProject.Filename)%(ExportWebappProject.Extension);
+                ExportWebappRunSkipBuild=$(ExportWebappSkipBuild)" />
+    </Target>
+    <Target Name="_ExportWebappFindProjects">
+        <ItemGroup>
+            <ExportWebappProject Condition=" '@(ExportWebappProject)' == '' and '$(ExportWebappProjects)' != '' " Include="$(ExportWebappProjects.Split('+;'))" />
+            <ExportWebappProject Condition=" '@(ExportWebappProject)' == '' " Include="$(SolutionDir)src\*Web\*.csproj" />
+        </ItemGroup>
+    </Target>
+    <Target Name="_ExportWebappRun">
+        <!-- Pandell.Deployment.targets defines ExportWebapp in .csproj,
+        but we have to restore packages before running MSBuild task
+        to make sure Pandell.Deployment is installed -->
+        <Exec
+            Condition=" Exists('$(ExportWebappRunTargetProjectDir)Packages.config') "
+            Command="&quot;$(MSBuildThisFileDirectory)NuGet.exe&quot; restore &quot;$(ExportWebappRunTargetProjectDir)Packages.config&quot;" />
+
+        <PropertyGroup>
+            <ExportWebappRunTargets>Build;ExportWebapp</ExportWebappRunTargets>
+            <ExportWebappRunTargets Condition=" '$(ExportWebappRunSkipBuild)' == '1' ">ExportWebapp</ExportWebappRunTargets>
+        </PropertyGroup>
+        <MSBuild
+            Projects="$(ExportWebappRunTargetProjectDir)$(ExportWebappRunTargetProjectName)"
+            Targets="$(ExportWebappRunTargets)"
+            Properties="
+                ExcludeGeneratedDebugSymbol=false;
+                Configuration=%(ConfigurationList.Identity);
+                BuildOutputDir=$(BuildOutputDir)" />
+    </Target>
+    <!--
+
+    Build solution (all requested configs) -->
+    <PropertyGroup>
+        <BuildDependsOn>_RequireSolutionFile;RestoreAllPackages;_UpdateBuildVersion</BuildDependsOn>
+    </PropertyGroup>
+    <Target Name="Build" DependsOnTargets="$(BuildDependsOn)">
+        <MSBuild
+            Projects="$(SolutionFile)"
+            Targets="Build"
+            Properties="
+                Configuration=%(ConfigurationList.Identity);
+                BuildOutputDir=$(BuildOutputDir)" />
+    </Target>
+    <Target Name="_ResolveIsExperimentalFlag">
+        <PropertyGroup>
+            <IsExperimental Condition=" '$(IsExperimental)' == '' ">false</IsExperimental>
+            <IsExperimental Condition=" Exists('$(MSBuildProjectFile).build-alpha-packages') ">true</IsExperimental>
+        </PropertyGroup>
+    </Target>
+    <Target Name="_UpdateBuildVersion" Condition=" '$(BUILD_NUMBER)' != '' " DependsOnTargets="_ResolveIsExperimentalFlag">
+        <Error Condition=" !Exists('$(AssemblyVersionInfoPath)') " Text=" File specified by AssemblyVersionInfoPath [$(AssemblyVersionInfoPath)] does not exist" />
+        <UpdateVersion File="$(AssemblyVersionInfoPath)" Version="$(BUILD_NUMBER)" IsExperimental="$(IsExperimental)" />
+    </Target>
+    <!--
+
+    Build all NuGet packages exported from
+    the current project. What packages are
+    built is defined by the (required) NuSpecFile
+    item group. -->
+    <PropertyGroup>
+        <BuildAllPackagesDependsOn>Build;_BuildAllPackagesFindNuspec;_BuildAllPackages</BuildAllPackagesDependsOn>
+    </PropertyGroup>
+    <Target Name="BuildAllPackages" DependsOnTargets="$(BuildAllPackagesDependsOn)" />
+    <Target Name="_BuildAllPackages">
+        <Error Condition=" '@(NuSpecFile)' == '' " Text="No *.nuspec files found (NuSpecFile item group)" />
+        <!--
+        Delete nupkg files for all NuSpecFile items -->
+        <ItemGroup>
+            <PackageOutBefore Include="$(BuildOutputDir)%(NuSpecFile.Filename).*.nupkg" />
+        </ItemGroup>
+        <SafeDelete Files="@(PackageOutBefore)" />
+        <!--
+        Run NuGet pack -->
+        <MSBuild
+            Projects="$(MSBuildProjectFile)"
+            Targets="_BuildAllPackagesOne"
+            Properties="
+                PackageVersion=$(PackageVersion);
+                PackageSpecName=%(NuSpecFile.Filename);
+                PackageSpecPath=%(NuSpecFile.Identity)" />
+        <!--
+        milang: as of NuGet 2.0 (2012-08-07) pack command will not report failures via exit code; let's check ourselves -->
+        <ItemGroup>
+            <PackErrors Condition=" !Exists('$(BuildOutputDir)%(NuSpecFile.Filename).$(PackageVersion).nupkg')" Include="%(NuSpecFile.Filename)" />
+        </ItemGroup>
+        <Error Condition=" '@(PackErrors)' != '' " Text="NuGet pack failed for @(PackErrors)" />
+    </Target>
+    <Target Name="_BuildAllPackagesFindNuspec" Condition=" '@(NuSpecFile)' == '' " DependsOnTargets="_ResolveIsExperimentalFlag">
+        <PropertyGroup>
+            <PackageVersion Condition=" '$(PackageVersion)' == '' ">$(BUILD_NUMBER)</PackageVersion>
+        </PropertyGroup>
+        <ExtractPackageVersion AssemblyVersionFile="$(AssemblyVersionInfoPath)" Condition=" '$(PackageVersion)' == '' ">
+            <Output TaskParameter="Version" PropertyName="PackageVersion" />
+        </ExtractPackageVersion>
+        <FormatPackageVersion IsExperimental="$(IsExperimental)" Version="$(PackageVersion)">
+            <Output TaskParameter="Version" PropertyName="PackageVersion" />
+        </FormatPackageVersion>
+        <ItemGroup>
+            <NuSpecFile Include="src\*\*.nuspec" />
+        </ItemGroup>
+    </Target>
+    <Target Name="_BuildAllPackagesOne">
+        <Message Text="Packing $(PackageSpecName)" />
+        <PropertyGroup>
+            <ExtraFlags Condition=" Exists('$(PackageSpecPath).no-analysis') ">-NoPackageAnalysis</ExtraFlags>
+        </PropertyGroup>
+        <SyncPackageVersion File="$(PackageSpecPath)" Version="$(PackageVersion)" />
+        <Exec
+            Command="&quot;$(MSBuildThisFileDirectory)NuGet.exe&quot; pack -Version $(PackageVersion) -Output &quot;$(BuildOutputDir).&quot; $(ExtraFlags) &quot;$(PackageSpecPath)&quot;"
+            IgnoreExitCode="False"
+            WorkingDirectory="$(SolutionDir)" />
+    </Target>
+    <!--
+
+    Synchronize version in NuSpec files
+    with version as specified by AssemblyVersionInfoPath file -->
+    <Target Name="SyncAllPackagesVersion" DependsOnTargets="_BuildAllPackagesFindNuspec">
+        <SyncPackageVersion File="%(NuSpecFile.Identity)" Version="$(PackageVersion)" />
+    </Target>
+    <!--
+
+    Upload NuGet files generated by BuildAllPackages
+    to specified target repository -->
+    <PropertyGroup>
+        <UploadAllPackagesDependsOn>BuildAllPackages;_UploadAllPackages</UploadAllPackagesDependsOn>
+    </PropertyGroup>
+    <Target Name="UploadAllPackages" DependsOnTargets="$(UploadAllPackagesDependsOn)" />
+    <Target Name="_UploadAllPackages">
+        <PropertyGroup>
+            <TargetPackageRepository Condition=" '$(TargetPackageRepository)' == '' ">\\files\Files\NuGetPackages</TargetPackageRepository>
+        </PropertyGroup>
+        <Error Condition=" !Exists($(TargetPackageRepository)) " Text="Target package repository ($(TargetPackageRepository)) does not exist or is not accessible" />
+        <ItemGroup>
+            <NuPkgFile Include="$(BuildOutputDir)*.nupkg" />
+        </ItemGroup>
+        <Error Condition=" '@(NuPkgFile)' == '' " Text="No *.nupkg files were found in $(BuildOutputDir)" />
+        <Copy SourceFiles="@(NuPkgFile)" DestinationFolder="$(TargetPackageRepository)" OverwriteReadOnlyFiles="True" SkipUnchangedFiles="True" />
+    </Target>
+    <!--
+
+    Build setup (*.msi) files for this project.
+    What setup files are built is defined
+    by the (required) SetupProject item group. -->
+    <PropertyGroup>
+        <BuildSetupDependsOn>Build;_BuildSetupFindWixproj;_BuildSetupRestoreWixprojPackages</BuildSetupDependsOn>
+    </PropertyGroup>
+    <Target Name="BuildSetup" DependsOnTargets="$(BuildSetupDependsOn)">
+        <Error Condition=" '@(SetupProject)' == '' " Text="No *.wixproj files found (SetupProject item group)" />
+        <PropertyGroup>
+            <BuildSetupConfigurations>@(ConfigurationList)</BuildSetupConfigurations>
+        </PropertyGroup>
+        <MSBuild
+            Projects="$(MSBuildProjectFile)"
+            Targets="_BuildSetupOne"
+            Properties="SetupProjectOne=%(SetupProject.Identity);Configurations=$(BuildSetupConfigurations);BuildOutputDir=$(BuildOutputDir)" />
+    </Target>
+    <Target Name="_BuildSetupFindWixproj" Condition=" '@(SetupProject)' == '' ">
+        <ItemGroup>
+            <SetupProject Include="src\*\*.wixproj" />
+        </ItemGroup>
+    </Target>
+    <Target Name="_BuildSetupRestoreWixprojPackages" Condition=" '@(SetupProject)' != '' ">
+        <Exec
+            Condition=" Exists('%(SetupProject.RelativeDir)Packages.config') "
+            Command="&quot;$(MSBuildThisFileDirectory)NuGet.exe&quot; restore &quot;%(SetupProject.RelativeDir)Packages.config&quot;" />
+    </Target>
+    <Target Name="_BuildSetupOne">
+        <MSBuild
+            Projects="$(SetupProjectOne)"
+            Targets="Build"
+            Properties="Configuration=%(ConfigurationList.Identity);BuildOutputDir=$(BuildOutputDir)" />
+    </Target>
+    <!--
+
+    Clean solution (all requested configs) -->
+    <PropertyGroup>
+        <CleanDependsOn>_RequireSolutionFile;_TestClean</CleanDependsOn>
+    </PropertyGroup>
+    <Target Name="Clean" DependsOnTargets="$(CleanDependsOn)">
+        <MSBuild Projects="$(SolutionFile)" Targets="Clean" Properties="Configuration=%(ConfigurationList.Identity);BuildOutputDir=$(BuildOutputDir)" />
+    </Target>
+    <!--
+
+    Delete all non-source-controlled files (except node modules
+    because their directory depth usually goes beyond MAXPATH,
+    which MSBuild is unable to handle) -->
+    <PropertyGroup>
+        <ClobberDependsOn>_GetProjectDirs</ClobberDependsOn>
+    </PropertyGroup>
+    <Target Name="Clobber" DependsOnTargets="$(ClobberDependsOn)">
+        <PropertyGroup>
+            <ClobberContinueOnError Condition=" '$(ClobberContinueOnError)'=='' ">false</ClobberContinueOnError>
+        </PropertyGroup>
+        <ItemGroup>
+            <FilesToClobber Include="_*" Exclude="_*.saved" />
+            <FilesToClobber Include="*.suo" />
+            <FilesToClobber Include="*.user" />
+            <FilesToClobber Include="*.sln.cache" />
+            <FilesToClobber Include="*.sln.docstates" />
+            <FilesToClobber Include="*resharper*" />
+            <FilesToClobber Include="%(ProjectDirs.Identity)\*.user" />
+        </ItemGroup>
+        <SafeDelete Files="@(FilesToClobber)" ContinueOnError="$(ClobberContinueOnError)" />
+        <ItemGroup>
+            <DirsToClobber Include="$(BuildOutputDir)" />
+            <DirsToClobber Include="$(SolutionDir).vs" />
+            <DirsToClobber Include="$(SolutionDir)nuget_modules" Condition=" '$(PreserveLibraries)' == '' " />
+            <DirsToClobber Include="$([System.IO.Directory]::GetDirectories($(SolutionDir), '_ReSharper*'))" />
+            <DirsToClobber Include="$(TEMP)\Temporary ASP.NET Files" Condition=" '$(SkipClobberOfTemporaryAspNetFiles)' == '' "/>
+        </ItemGroup>
+        <ItemGroup Condition=" '@(ProjectDirs)' != '' ">
+            <DirsToClobber Include="%(ProjectDirs.Identity)\bin" />
+            <DirsToClobber Include="%(ProjectDirs.Identity)\obj" />
+        </ItemGroup>
+        <RemoveDir Directories="%(DirsToClobber.Identity)" Condition=" Exists('%(DirsToClobber.Identity)') " ContinueOnError="$(ClobberContinueOnError)" />
+    </Target>
+    <!--
+
+    Restore NuGet packages -->
+    <PropertyGroup>
+        <RestoreAllPackagesDependsOn>_RequireSolutionFile</RestoreAllPackagesDependsOn>
+    </PropertyGroup>
+    <Target Name="RestoreAllPackages" DependsOnTargets="$(RestoreAllPackagesDependsOn)">
+        <Exec
+            Command="&quot;$(MSBuildThisFileDirectory)NuGet.exe&quot; restore &quot;$(SolutionFile)&quot;"
+            WorkingDirectory="$(SolutionDir)" />
+    </Target>
+    <Target Name="RestoreSolutionPackages">
+        <Exec
+            Command="&quot;$(MSBuildThisFileDirectory)NuGet.exe&quot; restore &quot;$(MSBuildThisFileDirectory)Packages.config&quot;"
+            WorkingDirectory="$(SolutionDir)" />
+    </Target>
+    <!--
+
+    Build and test solution (all requested configs) -->
+    <PropertyGroup>
+        <TestDependsOn>_TestClean;Build;_TestFindAssemblies</TestDependsOn>
+    </PropertyGroup>
+    <Target Name="Test" DependsOnTargets="$(TestDependsOn)">
+        <Error Condition=" '@(TestAssembliesList)' == '' " Text="No test assemblies were specified. Please set TestAssembliesPattern property or populate TestAssembliesList item group" />
+        <MSBuild Projects="$(MSBuildProjectFile)" Targets="_TestOne" Properties="NUnitAssembly=%(TestAssembliesList.Identity);NUnitParams=$(NUnitParams)" />
+        <ItemGroup>
+            <NUnitFailedTests Include="$(BuildOutputDir)*%(ConfigurationList.Identity)*NUnit.fail" />
+        </ItemGroup>
+        <Error Text="Some unit tests failed, can't continue" Condition=" '@(NUnitFailedTests)' != '' " />
+    </Target>
+    <Target Name="_TestClean">
+        <ItemGroup>
+            <NUnitTestIntermediateFiles Include="$(BuildOutputDir)*%(ConfigurationList.Identity)*NUnit*" />
+        </ItemGroup>
+        <SafeDelete Files="@(NUnitTestIntermediateFiles)" />
+    </Target>
+    <Target Name="_TestFindAssemblies" Condition=" '@(TestAssembliesList)' == '' ">
+        <PropertyGroup>
+            <TestAssembliesPattern Condition=" '$(TestAssembliesPattern)' == '' ">*.Test.dll</TestAssembliesPattern>
+        </PropertyGroup>
+        <ItemGroup>
+            <TestAssembliesList Include="$(BuildOutputDir)%(ConfigurationList.Identity)\$(TestAssembliesPattern)" />
+        </ItemGroup>
+    </Target>
+    <Target Name="_TestOne">
+        <Message Text="Testing: $(NUnitAssembly)" />
+        <FindMatchingDirectory Path="$(SolutionDir)nuget_modules" Pattern="NUnit.Runners.*">
+            <Output TaskParameter="Dir" PropertyName="NUnitDir" />
+        </FindMatchingDirectory>
+        <GetMarkerName File="$(NUnitAssembly)" Suffix="NUnit">
+            <Output TaskParameter="Marker" PropertyName="NUnitMarker" />
+        </GetMarkerName>
+        <PropertyGroup>
+            <NUnitXmlOut>/xml="$(BuildOutputDir)$(NUnitMarker).xml"</NUnitXmlOut>
+            <NUnitStdOut>/out="$(BuildOutputDir)$(NUnitMarker).stdOut"</NUnitStdOut>
+            <NUnitErrOut>/err="$(BuildOutputDir)$(NUnitMarker).stdErr"</NUnitErrOut>
+            <NUnitCmd>"$(NUnitDir)tools\$(NUnitExecutable)" $(NUnitParams) $(NUnitXmlOut) $(NUnitStdOut) $(NUnitErrOut) "$(NUnitAssembly)"</NUnitCmd>
+        </PropertyGroup>
+        <Exec IgnoreExitCode="true" Command="$(NUnitCmd)">
+            <Output TaskParameter="ExitCode" PropertyName="NUnitExitCode" />
+        </Exec>
+        <Touch Files="$(BuildOutputDir)$(NUnitMarker).pass" AlwaysCreate="true" Condition=" '$(NUnitExitCode)' == '0' " />
+        <Touch Files="$(BuildOutputDir)$(NUnitMarker).fail" AlwaysCreate="true" Condition=" '$(NUnitExitCode)' != '0' " />
+        <Warning Text="Some unit tests in assembly &quot;$(NUnitAssembly)&quot; failed" Condition=" '$(NUnitExitCode)' != '0' " />
+    </Target>
+    <!--
+
+    Unit tests (fast, no external dependencies) -->
+    <Target Name="UnitTest" DependsOnTargets="_UnitTestSetNUnitParams;Test" />
+    <Target Name="_UnitTestSetNUnitParams">
+        <PropertyGroup>
+            <NUnitParams>$(NUnitParams) /exclude=IntegrationTest</NUnitParams>
+        </PropertyGroup>
+    </Target>
+    <!--
+
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Public tasks
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+    <!--
+
+    This task will find the last modified directory matching a specific
+    pattern. This is needed to run tools included in NuGet packages.
+
+    Returned directory will always end with path separator.
+    If no matching directory is found, task will fail.
+
+    As of July 4, 2012, the NuGet VS extension does not support the
+    'ExcludeVersion' option, which the command line tool does.
+    TODO: Check this every few months. -->
+    <UsingTask TaskName="FindMatchingDirectory" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <Path ParameterType="System.String" Required="true" />
+            <Pattern ParameterType="System.String" Required="true" />
+            <Dir ParameterType="System.String" Output="true" />
+        </ParameterGroup>
+
+        <Task>
+            <Using Namespace="System.IO"/>
+            <Using Namespace="System.Linq"/>
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                this.Dir = Directory.EnumerateDirectories(this.Path, this.Pattern).Max();
+                if (this.Dir == null) {
+                    Log.LogError("No directory matches pattern \"" + this.Pattern + "\" in base directory \"" + this.Path + "\"");
+                } else {
+                    if (!this.Dir.EndsWith("\\")) {
+                        this.Dir = this.Dir + "\\";
+                    }
+                }
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+    This task will determine marker name from
+    full file name (used to create marker files
+    for NUnit tests) -->
+    <UsingTask TaskName="GetMarkerName" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <File ParameterType="System.String" Required="true" />
+            <Suffix ParameterType="System.String" Required="false" />
+            <Marker ParameterType="System.String" Output="true" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.IO"/>
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                var dirName = Path.GetDirectoryName(this.File);
+                var lastDirName = dirName.Substring(dirName.LastIndexOfAny(new[] { '/', '\\' }) + 1);
+                var fileName = Path.GetFileNameWithoutExtension(this.File);
+                this.Marker = string.Concat(fileName, '-', lastDirName, this.Suffix == null ? null : "-", this.Suffix);
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+    Determine NuGet package version based on current
+    version as specified in src/AssemblyVersionInfo.cs -->
+    <UsingTask TaskName="ExtractPackageVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <AssemblyVersionFile ParameterType="System.String" Required="true" />
+            <Version ParameterType="System.String" Output="true" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.IO" />
+            <Using Namespace="System.Text" />
+            <Using Namespace="System.Text.RegularExpressions" />
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                const string versionMatcher = @"
+                    (?<=AssemblyFileVersion\("") # lookbehind
+                    [\d.]+   # version itself
+                    (?=""\)) # lookahead";
+                var versionInfoText = File.ReadAllText(this.AssemblyVersionFile);
+                var match = Regex.Match(versionInfoText, versionMatcher, RegexOptions.IgnorePatternWhitespace);
+                if (!match.Success) {
+                    Log.LogError("No version information found in " + this.AssemblyVersionFile);
+                }
+
+                this.Version = match.Value;
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+    Format provided package version. If the build is
+    experimental, use prerelease SemVer conventions
+    with "alpha" as the build quality. -->
+    <UsingTask TaskName="FormatPackageVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <IsExperimental ParameterType="System.Boolean" Required="false" />
+            <Version ParameterType="System.String" Required="true" Output="true" />
+        </ParameterGroup>
+        <Task>
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                var version = new Version(this.Version);
+                this.Version = (this.IsExperimental
+                    ? version.ToString(3) + "-alpha" + version.Revision.ToString("0000", System.Globalization.CultureInfo.InvariantCulture)
+                    : version.ToString(3));
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+    This task will delete both regular and readonly
+    files (if you have permission to change file attributes) -->
+    <UsingTask TaskName="SafeDelete" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <Files ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.IO" />
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                if (this.Files != null && this.Files.Length > 0) {
+                    foreach (var file in this.Files) {
+                        var fileName = file.ItemSpec;
+                        if (File.Exists(fileName)) {
+                            Log.LogMessage(string.Concat("Deleting \"", fileName, '"'), MessageImportance.High);
+                            File.SetAttributes(fileName, FileAttributes.Normal);
+                            File.Delete(fileName);
+                        }
+                    }
+                }
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+    Synchronize all dependency specifications
+    that contain "sync" comment at the end of line -->
+    <UsingTask TaskName="SyncPackageVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <Version ParameterType="System.String" Required="true" />
+            <File ParameterType="System.String" Required="true" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.Text" />
+            <Using Namespace="System.Text.RegularExpressions" />
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                const string versionMatcher = @"
+                    (?<=version\s*=\s*""\[)  # lookbehind
+                    [^]""]+                  # version itself
+                    (?=\]""\s*/><!--sync-->) # lookahead";
+                var fileText = System.IO.File.ReadAllText(this.File);
+                var newFileText = Regex.Replace(fileText, versionMatcher, this.Version, RegexOptions.IgnorePatternWhitespace | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+                if (newFileText != fileText) {
+                    Log.LogMessage("Updating dependency version in \"{0}\"", this.File);
+                    System.IO.File.WriteAllText(this.File, newFileText, Encoding.ASCII);
+                }
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+    This task will update version in the specified
+    AssemblyVersionInfo file to the specified value -->
+    <UsingTask TaskName="UpdateVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <File ParameterType="System.String" Required="true" />
+            <Version ParameterType="System.String" Required="true" />
+            <IsExperimental ParameterType="System.Boolean" Required="false" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.Text" />
+            <Using Namespace="System.Text.RegularExpressions" />
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                var version = new System.Version(this.Version);
+                var fileText = System.IO.File.ReadAllText(this.File);
+                var newFileText = fileText;
+
+                // update assembly version
+                newFileText = Regex.Replace(
+                    newFileText,
+                    @"AssemblyVersion\s*\(\s*""[^""]+",
+                    @"AssemblyVersion(""" + version.ToString(2) + @".0.0",
+                    RegexOptions.CultureInvariant);
+
+                // update file version
+                newFileText = Regex.Replace(
+                    newFileText,
+                    @"AssemblyFileVersion\s*\(\s*""[^""]+",
+                    @"AssemblyFileVersion(""" + version.ToString(4),
+                    RegexOptions.CultureInvariant);
+
+                // update nuget-semver version (see https://docs.nuget.org/create/versioning#really-brief-introduction-to-semver)
+                newFileText = Regex.Replace(
+                    newFileText,
+                    @"AssemblyInformationalVersion\s*\(\s*""[^""]+",
+                    @"AssemblyInformationalVersion(""" + (this.IsExperimental
+                        ? version.ToString(3) + "-alpha" + version.Revision.ToString("0000", System.Globalization.CultureInfo.InvariantCulture)
+                        : version.ToString(3)),
+                    RegexOptions.CultureInvariant);
+
+                // update product version
+                newFileText = Regex.Replace(
+                    newFileText,
+                    @"v\d+\.\d+\.\d+",
+                    @"v" + version.ToString(3),
+                    RegexOptions.CultureInvariant);
+
+                if (newFileText != fileText) {
+                    Log.LogMessage("Updating version in \"{0}\" to {1}", this.File, this.Version);
+                    System.IO.File.WriteAllText(this.File, newFileText, Encoding.ASCII);
+                }
+                else {
+                    Log.LogMessage("Version in \"{0}\" is already {1}", this.File, this.Version);
+                }
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+    This task will start a new process without
+    waiting for it to exit -->
+    <UsingTask TaskName="StartProcess" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+        <ParameterGroup>
+            <Executable ParameterType="System.String" Required="true" />
+            <Arguments ParameterType="System.String" Required="false" />
+            <WorkingDirectory ParameterType="System.String" Required="false" />
+            <UseShellExecute ParameterType="System.Boolean" Required="false" />
+        </ParameterGroup>
+        <Task>
+            <Using Namespace="System.Diagnostics" />
+            <Code Type="Fragment" Language="cs">
+                <![CDATA[
+
+                if (this.WorkingDirectory == null) {
+                    this.WorkingDirectory = Environment.CurrentDirectory;
+                }
+
+                Log.LogMessage("In working directory: \"{0}\", starting process: \"{1}\", with arguments: \"{2}\"", this.WorkingDirectory, this.Executable, this.Arguments);
+                var info = new ProcessStartInfo(this.Executable, this.Arguments) {
+                    UseShellExecute = this.UseShellExecute,
+                    WorkingDirectory = this.WorkingDirectory
+                };
+
+                Process.Start(info);
+
+                ]]>
+            </Code>
+        </Task>
+    </UsingTask>
+    <!--
+
+
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    Private targets and tasks
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~-->
+    <Target Name="_GetProjectDirs" Condition=" '@(ProjectDirs)' == '' ">
+        <ItemGroup>
+            <ProjectDirs Include="$([System.IO.Directory]::GetDirectories($(SolutionDir), 'src\*'))" Condition=" Exists('$(SolutionDir)src') " />
+        </ItemGroup>
+    </Target>
+    <Target Name="_GetProjectNames" Condition=" '@(ProjectNames)' == '' " DependsOnTargets="_GetProjectDirs">
+        <ItemGroup>
+            <ProjectNames Include="%(ProjectDirs.Identity)\*.csproj" />
+        </ItemGroup>
+    </Target>
+    <Target Name="_RequireSolutionFile">
+        <PropertyGroup Condition=" '$(SolutionFile)' == '' ">
+            <SolutionFile>$([System.IO.Directory]::GetFiles('$(SolutionDir)', '*.sln'))</SolutionFile>
+        </PropertyGroup>
+        <Error Condition=" '$(SolutionFile)' == '' " Text="No solution file could be found; use 'SolutionFile' property to explicitly specify the file" />
+        <Error Condition=" $(SolutionFile.Contains(';')) " Text="More than one solution file was found; use 'SolutionFile' property to explicitly specify the file to use" />
+        <Error Condition=" !Exists($(SolutionFile)) " Text="Specified solution file ($(SolutionFile)) doesn't exist or isn't readable" />
+    </Target>
+</Project>

@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.40629.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PackageRunner", "PackageRunner.csproj", "{7417D3FF-4794-406A-B2B5-073332B72511}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Package.Runner", "src\Pandell.PackageRunner\Package.Runner.csproj", "{7417D3FF-4794-406A-B2B5-073332B72511}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pandell.PackageRunner.Test", "src\Pandell.PackageRunner.Test\Pandell.PackageRunner.Test.csproj", "{5D98ADE7-A84F-480F-A1EA-3620AFFAADA6}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{7417D3FF-4794-406A-B2B5-073332B72511}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{7417D3FF-4794-406A-B2B5-073332B72511}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{7417D3FF-4794-406A-B2B5-073332B72511}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5D98ADE7-A84F-480F-A1EA-3620AFFAADA6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D98ADE7-A84F-480F-A1EA-3620AFFAADA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D98ADE7-A84F-480F-A1EA-3620AFFAADA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D98ADE7-A84F-480F-A1EA-3620AFFAADA6}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
