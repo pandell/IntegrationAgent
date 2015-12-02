@@ -36,9 +36,9 @@
     <DefineConstants>CODE_ANALYSIS;TRACE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Pandell.PackageRunner\Package.Runner.csproj">
+    <ProjectReference Include="..\Pandell.PackageRunner\Pandell.PackageRunner.csproj">
       <Project>{7417D3FF-4794-406A-B2B5-073332B72511}</Project>
-      <Name>Package.Runner</Name>
+      <Name>Pandell.PackageRunner</Name>
     </ProjectReference>
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="nunit.framework">
