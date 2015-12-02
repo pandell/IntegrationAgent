@@ -83,19 +83,17 @@
     <GetFrameworkSdkPath>
       <Output TaskParameter="Path" PropertyName="WindowsSdkPath" />
     </GetFrameworkSdkPath>
-    <Exec Command="WHERE /r &quot;$(WindowsSdkPath.TrimEnd('\\'))&quot; sn &gt; sn-path.txt" />
-    <ReadLinesFromFile File="sn-path.txt">
-      <Output TaskParameter="Lines" PropertyName="SNPath" />
-    </ReadLinesFromFile>
+    <Exec Command="WHERE /r &quot;$(WindowsSdkPath.TrimEnd('\\'))&quot; sn" ConsoleToMSBuild="true">
+        <Output TaskParameter="ConsoleOutput" PropertyName="SNPath" />
+    </Exec>
     <Delete Files="sn-path.txt" />
     <PropertyGroup>
       <SNPath>$([System.Text.RegularExpressions.Regex]::Replace('$(SNPath)', ';.*', ''))</SNPath>
     </PropertyGroup>
     <Exec Command="&quot;$(SNPath)&quot; -p &quot;$(AssemblyOriginatorKeyFile)&quot; Pandell.PackageRunner.pub" />
-    <Exec Command="&quot;$(SNPath)&quot; -q -t Pandell.PackageRunner.pub &gt; Pandell.PackageRunner.token" />
-    <ReadLinesFromFile File="Pandell.PackageRunner.token">
-      <Output TaskParameter="Lines" PropertyName="TokenFile" />
-    </ReadLinesFromFile>
+    <Exec Command="&quot;$(SNPath)&quot; -q -t Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
+        <Output TaskParameter="ConsoleOutput" PropertyName="TokenFile" />
+    </Exec>
     <PropertyGroup>
       <TokenFile>$([System.Text.RegularExpressions.Regex]::Replace('$(TokenFile)', 'Public key token is ', ''))</TokenFile>
     </PropertyGroup>
