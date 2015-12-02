@@ -86,7 +86,6 @@
     <Exec Command="WHERE /r &quot;$(WindowsSdkPath.TrimEnd('\\'))&quot; sn" ConsoleToMSBuild="true">
         <Output TaskParameter="ConsoleOutput" PropertyName="SNPath" />
     </Exec>
-    <Delete Files="sn-path.txt" />
     <PropertyGroup>
       <SNPath>$([System.Text.RegularExpressions.Regex]::Replace('$(SNPath)', ';.*', ''))</SNPath>
     </PropertyGroup>
