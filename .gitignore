@@ -11,3 +11,5 @@ build/
 
 *.user
 *.dotCover
+
+Pandell.PackageRunner.pub
