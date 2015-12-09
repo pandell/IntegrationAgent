@@ -3,8 +3,8 @@
 */
 namespace PackageRunner
 {
-sealed class Token
-{
-public static readonly string String = "c4bcdab9e3e6e7fa";
-}
+    internal static class Token
+    {
+        public static readonly byte[] Bytes = { 0xc4, 0xbc, 0xda, 0xb9, 0xe3, 0xe6, 0xe7, 0xfa, };
+    }
 }

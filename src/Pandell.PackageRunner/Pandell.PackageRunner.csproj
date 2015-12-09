@@ -79,7 +79,35 @@
     </EmbeddedResource>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <Target Name="GetPublicKeyToken" BeforeTargets="BeforeBuild">
+  <UsingTask TaskName="UpdateTokenFile" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+    <ParameterGroup>
+      <Token ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO"/>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+            var tokenString = (this.Token ?? "").Replace("Public key token is ", "");
+            var tokenBytes = "";
+            for (var i = 0; i < tokenString.Length; i += 2)
+            {
+                tokenBytes += "0x" + tokenString.Substring(i, 2) + ", ";
+            }
+            var tokenFileLines = File.ReadAllLines("Token.cs");
+            if (tokenFileLines.Length != 10)
+            {
+                throw new InvalidOperationException("Token.cs file was not in the correct format (most likely missing or manually modified).");
+            }
+            if (!tokenFileLines[7].Contains(tokenBytes))
+            {
+                tokenFileLines[7] = "        public static readonly byte[] Bytes = { " + tokenBytes + "};"; 
+                File.WriteAllLines("Token.cs", tokenFileLines);
+            }
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+  <Target Name="UpdatePublicKeyToken" BeforeTargets="BeforeBuild">
     <GetFrameworkSdkPath>
       <Output TaskParameter="Path" PropertyName="WindowsSdkPath" />
     </GetFrameworkSdkPath>
@@ -89,21 +117,10 @@
     <PropertyGroup>
       <SNPath>$([System.Text.RegularExpressions.Regex]::Replace('$(SNPath)', ';.*', ''))</SNPath>
     </PropertyGroup>
-    <Exec Command="&quot;$(SNPath)&quot; -p &quot;$(AssemblyOriginatorKeyFile)&quot; Pandell.PackageRunner.pub" />
-    <Exec Command="&quot;$(SNPath)&quot; -q -t Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
-        <Output TaskParameter="ConsoleOutput" PropertyName="TokenFile" />
+    <Exec Command="&quot;$(SNPath)&quot; -p &quot;$(AssemblyOriginatorKeyFile)&quot; $(BaseIntermediateOutputPath)Pandell.PackageRunner.pub" />
+    <Exec Command="&quot;$(SNPath)&quot; -q -t $(BaseIntermediateOutputPath)Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
+        <Output TaskParameter="ConsoleOutput" PropertyName="Token" />
     </Exec>
-    <PropertyGroup>
-      <TokenFile>$([System.Text.RegularExpressions.Regex]::Replace('$(TokenFile)', 'Public key token is ', ''))</TokenFile>
-    </PropertyGroup>
-    <ReadLinesFromFile File="Token.cs">
-      <Output TaskParameter="Lines" PropertyName="TokenCode" />
-    </ReadLinesFromFile>
-    <PropertyGroup>
-      <TokenCode>$([System.Text.RegularExpressions.Regex]::Replace('$(TokenCode)', ';', '%0D%0A'))</TokenCode>
-      <TokenCode>$([System.Text.RegularExpressions.Regex]::Replace('$(TokenCode)', '\".*\"%0D%0A', '"$(TokenFile)";'))</TokenCode>
-    </PropertyGroup>
-    <Message Text="$(TokenCode)" />
-    <WriteLinesToFile File="Token.cs" Lines="$(TokenCode)" Overwrite="true" />
+    <UpdateTokenFile Token="$(Token)" />
   </Target>
 </Project>

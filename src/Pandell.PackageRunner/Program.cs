@@ -98,7 +98,7 @@ namespace PackageRunner
             var parameters = ParseArguments(args);
 
             // Verify that assembly is signed and uses the correct key
-            if (!AssemblyChecker.IsValid(programFile, HexStringToByteArray(Token.String)))
+            if (!AssemblyChecker.IsValid(programFile, Token.Bytes))
             {
                 log.AddLine("Invalid assembly!");
                 return;
@@ -265,13 +265,6 @@ namespace PackageRunner
             }
 
             return parameters;
-        }
-
-        /// <summary>
-        /// </summary>
-        private static byte[] HexStringToByteArray(string hex)
-        {
-            return Enumerable.Range(0, hex.Length/2).Select(x => Convert.ToByte(hex.Substring(x*2, 2), 16)).ToArray();
         }
     }
 }

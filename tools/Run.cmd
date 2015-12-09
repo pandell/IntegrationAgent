@@ -1,5 +1,7 @@
 @echo off
 
+rem NOTE: Copy of the corresponding file form node-repo-init v3.0.0 repository
+
 rem |  Common pattern of MSBUILD target invocation
 rem |  for Pandell builds.
 rem |
