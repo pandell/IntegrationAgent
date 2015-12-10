@@ -2,7 +2,7 @@
 
 Pandell common targets file
 
-NOTE: Copy of the corresponding file form node-repo-init v3.0.0 repository
+NOTE: Copy of https://github.com/pandell/node-repo-init/blob/v3.0.0/sync/.nuget/Pandell.targets
 
 Note: MSBuild property functions are used throughout
     this file. A very useful guide to property functions

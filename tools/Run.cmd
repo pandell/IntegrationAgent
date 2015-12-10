@@ -1,6 +1,6 @@
 @echo off
 
-rem NOTE: Copy of the corresponding file form node-repo-init v3.0.0 repository
+rem NOTE: Copy of https://github.com/pandell/node-repo-init/blob/v3.0.0/sync/tools/Run.cmd
 
 rem |  Common pattern of MSBUILD target invocation
 rem |  for Pandell builds.

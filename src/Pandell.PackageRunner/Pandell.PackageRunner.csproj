@@ -102,6 +102,7 @@
             {
                 tokenFileLines[7] = "        public static readonly byte[] Bytes = { " + tokenBytes + "};"; 
                 File.WriteAllLines("Token.cs", tokenFileLines);
+                Log.LogMessage("Updating \"Token.cs\" to \"{0}\"", tokenString);
             }
         ]]>
       </Code>
