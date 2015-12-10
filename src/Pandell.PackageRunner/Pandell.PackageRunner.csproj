@@ -109,7 +109,7 @@
     </Task>
   </UsingTask>
   <Target Name="UpdatePublicKeyToken" BeforeTargets="BeforeBuild">
-    <GetFrameworkSdkPath>
+    <GetFrameworkSdkPath Condition=" '$(WindowsSdkPath)' == '' ">
       <Output TaskParameter="Path" PropertyName="WindowsSdkPath" />
     </GetFrameworkSdkPath>
     <Exec Command="WHERE /r &quot;$(WindowsSdkPath.TrimEnd('\\'))&quot; sn" ConsoleToMSBuild="true">
@@ -118,8 +118,9 @@
     <PropertyGroup>
       <SNPath>$([System.Text.RegularExpressions.Regex]::Replace('$(SNPath)', ';.*', ''))</SNPath>
     </PropertyGroup>
-    <Exec Command="&quot;$(SNPath)&quot; -p &quot;$(AssemblyOriginatorKeyFile)&quot; $(BaseIntermediateOutputPath)Pandell.PackageRunner.pub" />
-    <Exec Command="&quot;$(SNPath)&quot; -q -t $(BaseIntermediateOutputPath)Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
+    <MakeDir Directories="$(BaseIntermediateOutputPath)$(Configuration)"/>
+    <Exec Command="&quot;$(SNPath)&quot; -q -p &quot;$(AssemblyOriginatorKeyFile)&quot; $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" />
+    <Exec Command="&quot;$(SNPath)&quot; -q -t $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
         <Output TaskParameter="ConsoleOutput" PropertyName="Token" />
     </Exec>
     <UpdateTokenFile Token="$(Token)" />
