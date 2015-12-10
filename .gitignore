@@ -2,11 +2,12 @@
 /*.sln.*
 /*.suo
 /*.saved
-/*.cmd
+
+/nuget_modules/
 
 bin/
 obj/
-packages/
+build/
 
 *.user
 *.dotCover

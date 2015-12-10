@@ -18,6 +18,8 @@ namespace PackageRunner
         public string Package;
         public string Token;
         public string Repository;
+        public string RepositoryUsername;
+        public string RepositoryPassword;
         public string Config;
         public bool DisableUpdates;
     }
@@ -43,9 +45,6 @@ namespace PackageRunner
 
         /// <summary />
         private const string NuGetRepository = "https://www.nuget.org/api/v2/";
-
-        /// <summary />
-        private static readonly byte[] Token = { 0xb1, 0xe6, 0xe5, 0xee, 0x73, 0xbe, 0x6e, 0x7d };
 
         /// <summary>
         /// </summary>
@@ -99,7 +98,7 @@ namespace PackageRunner
             var parameters = ParseArguments(args);
 
             // Verify that assembly is signed and uses the correct key
-            if (!AssemblyChecker.IsValid(programFile, Token))
+            if (!AssemblyChecker.IsValid(programFile, Token.Bytes))
             {
                 log.AddLine("Invalid assembly!");
                 return;
@@ -129,6 +128,8 @@ namespace PackageRunner
             configuration.package = parameters.Package ?? configuration.package;
             configuration.token = parameters.Token ?? configuration.token;
             configuration.repository = parameters.Repository ?? configuration.repository;
+            configuration.repositoryUsername = parameters.RepositoryUsername ?? configuration.repositoryUsername;
+            configuration.repositoryPassword = parameters.RepositoryPassword ?? configuration.repositoryPassword;
 
             if (string.IsNullOrWhiteSpace(configuration.package) && string.IsNullOrEmpty(configuration.token))
             {
@@ -246,6 +247,8 @@ namespace PackageRunner
                 new { names = new [] {"package", "p"}, parse = new Action<string>(val => { parameters.Package = val; } )},
                 new { names = new [] {"token", "t"}, parse = new Action<string>(val => { parameters.Token = val; } )},
                 new { names = new [] {"repository", "r"}, parse = new Action<string>(val => { parameters.Repository = val; } )},
+                new { names = new [] {"username", "u"}, parse = new Action<string>(val => { parameters.RepositoryUsername = val; } )},
+                new { names = new [] {"password", "w"}, parse = new Action<string>(val => { parameters.RepositoryPassword = val; } )},
                 new { names = new [] {"config", "c"}, parse = new Action<string>(val => { parameters.Config = val; } )},
                 new { names = new [] {"disableupdates", "d"}, parse = new Action<string>(val => { parameters.DisableUpdates = true; } )}
             };

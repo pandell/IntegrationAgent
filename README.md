@@ -32,7 +32,7 @@ An example configuration file.
 	"repository": "http://host/NugetServer/nuget"
 }
 ``` 
-Some parameters could be also supplied as command line arguments to the executable (command line arguments have precedence).
+Parameters could be also supplied as command line arguments to the executable (command line arguments have precedence).
 The `package` and `token` are obviously needed to locate the package and pass a string token argument to the execution delegate.
 
 ## Execution delegate

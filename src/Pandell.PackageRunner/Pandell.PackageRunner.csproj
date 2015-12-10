@@ -1,0 +1,128 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{7417D3FF-4794-406A-B2B5-073332B72511}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>PackageRunner</RootNamespace>
+    <AssemblyName>PackageRunner</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile Condition=" '$(AssemblyOriginatorFile)' == '' ">..\Pandell.PackageRunner.snk</AssemblyOriginatorKeyFile>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <NoWarn />
+    <WarningsNotAsErrors />
+  </PropertyGroup>
+  <PropertyGroup>
+    <BuildOutputDir Condition=" '$(BuildOutputDir)' == '' ">$(MSBuildThisFileDirectory)..\..\build\</BuildOutputDir>
+    <OutputPath>$(BuildOutputDir)$(Configuration)\</OutputPath>
+    <DocumentationFile>$(OutputPath)$(AssemblyName).xml</DocumentationFile>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineConstants>CODE_ANALYSIS;TRACE;DEBUG</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineConstants>CODE_ANALYSIS;TRACE</DefineConstants>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Microsoft.Web.XmlTransform, Version=2.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\..\nuget_modules\Microsoft.Web.Xdt.2.1.1\lib\net40\Microsoft.Web.XmlTransform.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="NuGet.Core, Version=2.8.60717.93, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+      <HintPath>..\..\nuget_modules\NuGet.Core.2.8.6\lib\net40-Client\NuGet.Core.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Web.Extensions" />
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="AssemblyChecker.cs" />
+    <Compile Include="Extensions.cs" />
+    <Compile Include="FileLogging.cs" />
+    <Compile Include="NugetCredentialProvider.cs" />
+    <Compile Include="Program.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="..\AssemblyVersionInfo.cs">
+      <Link>Properties\AssemblyVersionInfo.cs</Link>
+    </Compile>
+    <Compile Include="Token.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="packages.config">
+      <SubType>Designer</SubType>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\nuget_modules\Microsoft.Web.Xdt.2.1.1\lib\net40\Microsoft.Web.XmlTransform.dll">
+      <Link>Properties\Microsoft.Web.XmlTransform.dll</Link>
+    </EmbeddedResource>
+    <EmbeddedResource Include="..\..\nuget_modules\NuGet.Core.2.8.6\lib\net40-Client\NuGet.Core.dll">
+      <Link>Properties\NuGet.Core.dll</Link>
+    </EmbeddedResource>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <UsingTask TaskName="UpdateTokenFile" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
+    <ParameterGroup>
+      <Token ParameterType="System.String" Required="true" />
+    </ParameterGroup>
+    <Task>
+      <Using Namespace="System.IO"/>
+      <Code Type="Fragment" Language="cs">
+        <![CDATA[
+            var tokenString = (this.Token ?? "").Replace("Public key token is ", "");
+            var tokenBytes = "";
+            for (var i = 0; i < tokenString.Length; i += 2)
+            {
+                tokenBytes += "0x" + tokenString.Substring(i, 2) + ", ";
+            }
+            var tokenFileLines = File.ReadAllLines("Token.cs");
+            if (tokenFileLines.Length != 10)
+            {
+                throw new InvalidOperationException("Token.cs file was not in the correct format (most likely missing or manually modified).");
+            }
+            if (!tokenFileLines[7].Contains(tokenBytes))
+            {
+                tokenFileLines[7] = "        public static readonly byte[] Bytes = { " + tokenBytes + "};"; 
+                File.WriteAllLines("Token.cs", tokenFileLines);
+                Log.LogMessage("Updating \"Token.cs\" to \"{0}\"", tokenString);
+            }
+        ]]>
+      </Code>
+    </Task>
+  </UsingTask>
+  <Target Name="UpdatePublicKeyToken" BeforeTargets="BeforeBuild">
+    <GetFrameworkSdkPath Condition=" '$(WindowsSdkPath)' == '' ">
+      <Output TaskParameter="Path" PropertyName="WindowsSdkPath" />
+    </GetFrameworkSdkPath>
+    <Exec Command="WHERE /r &quot;$(WindowsSdkPath.TrimEnd('\\'))&quot; sn" ConsoleToMSBuild="true">
+        <Output TaskParameter="ConsoleOutput" PropertyName="SNPath" />
+    </Exec>
+    <PropertyGroup>
+      <SNPath>$([System.Text.RegularExpressions.Regex]::Replace('$(SNPath)', ';.*', ''))</SNPath>
+    </PropertyGroup>
+    <MakeDir Directories="$(BaseIntermediateOutputPath)$(Configuration)"/>
+    <Exec Command="&quot;$(SNPath)&quot; -q -p &quot;$(AssemblyOriginatorKeyFile)&quot; $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" />
+    <Exec Command="&quot;$(SNPath)&quot; -q -t $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
+        <Output TaskParameter="ConsoleOutput" PropertyName="Token" />
+    </Exec>
+    <UpdateTokenFile Token="$(Token)" />
+  </Target>
+</Project>
