@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.InteropServices;
 
 namespace PackageRunner
 {
@@ -9,17 +8,33 @@ namespace PackageRunner
     /// </summary>
     internal class AssemblyChecker
     {
-        [DllImport("mscoree.dll", CharSet = CharSet.Unicode)]
-        private static extern bool StrongNameSignatureVerificationEx(string wszFilePath, byte fForceVerification, ref byte pfWasVerified);
+        private delegate bool VerifySignatureDelegate(string assemblyPath, bool forceCheck, out bool wasVerified);
+
+        private static readonly VerifySignatureDelegate VerifySignatureMethod = LoadVerifySignatureMethod();
+
+        private static VerifySignatureDelegate LoadVerifySignatureMethod()
+        {
+            var strongNameHelpers = typeof(AppDomain).Assembly.GetType("Microsoft.Runtime.Hosting.StrongNameHelpers");
+            if (strongNameHelpers == null) { throw new InvalidOperationException("StrongNameHelpers cannot be found in mscorlib."); }
+            var verifySignatureMethod = strongNameHelpers.GetMethod("StrongNameSignatureVerificationEx");
+            if (verifySignatureMethod == null) { throw new InvalidOperationException("StrongNameHelpers.StrongNameSignatureVerificationEx cannot be found in mscorlib."); }
+            return (VerifySignatureDelegate)verifySignatureMethod.CreateDelegate(typeof(VerifySignatureDelegate));
+        }
 
         /// <summary>
+        /// Invokes <c>ICLRStrongName.StrongNameSignatureVerificationEx</c>
+        /// (see https://msdn.microsoft.com/en-us/library/ff844054 for more info).
         /// </summary>
+        /// <remarks>
+        /// If we ever need failure details, <c>Microsoft.Runtime.Hosting.StrongNameHelpers.StrongNameErrorInfo</c>
+        /// method can be used immediately after the verify call to get the HRESULT;
+        /// more information about .NET CLR HRESULT codes can be found here:
+        /// http://blogs.msdn.com/b/yizhang/archive/2010/12/17/interpreting-hresults-returned-from-net-clr-0x8013xxxx.aspx
+        /// </remarks>
         public static bool IsStrongNameValid(string fileName)
         {
-            var forceVerification = Convert.ToByte(true);
-            var wasVerified = Convert.ToByte(false);
-
-            return StrongNameSignatureVerificationEx(fileName, forceVerification, ref wasVerified);
+            bool wasVerified;
+            return VerifySignatureMethod(fileName, true, out wasVerified) && wasVerified;
         }
 
         /// <summary>
