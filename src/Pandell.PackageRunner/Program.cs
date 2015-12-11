@@ -59,29 +59,7 @@ namespace PackageRunner
             var log = new FileLogging(logFile);
             try
             {
-
-                var embeddedAssemblies = packageRunnerAssembly
-                    .GetManifestResourceNames()
-                    .Where(s => s.EndsWith(".dll"))
-                    .Select(s =>
-                    {
-                        byte[] rawAssembly;
-                        using (var stream = packageRunnerAssembly.GetManifestResourceStream(s) ?? new MemoryStream(0))
-                        using (var ms = new MemoryStream())
-                        {
-                            stream.CopyTo(ms);
-                            rawAssembly = ms.ToArray();
-                        }
-                        return Assembly.Load(rawAssembly);
-                    })
-                    .ToDictionary(a => a.FullName);
-
-                AppDomain.CurrentDomain.AssemblyResolve += (sender, eventArgs) =>
-                {
-                    var aname = new AssemblyName(eventArgs.Name);
-                    return embeddedAssemblies.ContainsKey(aname.FullName) ? embeddedAssemblies[aname.FullName] : null;
-                };
-
+                packageRunnerAssembly.EnableResolvingOfEmbeddedAssemblies();
                 var program = new Program();
                 program.Run(packageRunnerAssembly, packageRunnerExeFileName, packageRunnerExeDirectory, log, args);
             }
@@ -238,6 +216,7 @@ namespace PackageRunner
             }
         }
 
+
         /// <summary>
         /// </summary>
         private static Parameters ParseArguments(IEnumerable<string> args)
@@ -272,5 +251,7 @@ namespace PackageRunner
 
             return parameters;
         }
+
     }
+
 }

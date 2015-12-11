@@ -18,6 +18,40 @@ namespace PackageRunner
 
         //--------------------------------------------------
         /// <summary>
+        /// Add all embedded assemblies (resources ending with ".dll")
+        /// from the specified assembly to <see cref="AppDomain.AssemblyResolve"/>
+        /// handler (making them available for use without being on disk).
+        /// </summary>
+        public static void EnableResolvingOfEmbeddedAssemblies([NotNull] this Assembly assembly)
+        {
+            if (assembly == null) { throw new ArgumentNullException("assembly"); }
+
+            var embeddedAssemblies = assembly
+                .GetManifestResourceNames()
+                .Where(s => s.EndsWith(".dll"))
+                .Select(s =>
+                {
+                    using (var stream = assembly.GetManifestResourceStream(s))
+                    using (var ms = new MemoryStream())
+                    {
+                        if (stream == null) { throw new InvalidOperationException("Embedded resource \"" + s + "\" is null");}
+                        stream.CopyTo(ms);
+                        return Assembly.Load(ms.ToArray());
+                    }
+                })
+                .ToArray();
+
+            AppDomain.CurrentDomain.AssemblyResolve += (sender, eventArgs) =>
+            {
+                var assemblyToResolve = new AssemblyName(eventArgs.Name);
+                return embeddedAssemblies.FirstOrDefault(
+                    a => AssemblyName.ReferenceMatchesDefinition(assemblyToResolve, a.GetName()));
+            };
+        }
+
+
+        //--------------------------------------------------
+        /// <summary>
         /// Gets full path of the of the given assembly
         /// (as specified originally, i.e. disregarding shadow copying).
         /// </summary>

@@ -2,6 +2,8 @@ using System;
 using System.IO;
 using System.Reflection;
 
+using JetBrains.Annotations;
+
 using NUnit.Framework;
 
 using PackageRunner;
@@ -14,6 +16,19 @@ namespace Pandell.PackageRunner.Test
     /// </summary>
     internal static class AssemblyExtensionsTests
     {
+
+        //--------------------------------------------------
+        [Test]
+        public static void EnableResolvingOfEmbeddedAssemblies_PackageRunnerAssembly_ProvidesAssembliesNotOnDisk()
+        {
+            var packageRunnerAssembly = typeof(AssemblyExtensions).Assembly;
+            packageRunnerAssembly.EnableResolvingOfEmbeddedAssemblies();
+
+            Assert.IsTrue(File.Exists(Path.Combine(Environment.CurrentDirectory, "PackageRunner.exe")), "PackageRunner.exe should exist in the current directory");
+            Assert.IsFalse(File.Exists(Path.Combine(Environment.CurrentDirectory, "Microsoft.Web.XmlTransform.dll")), "Microsoft.Web.XmlTransform.dll should NOT exist in the current directory");
+            Assert.IsNotNull(Assembly.Load("Microsoft.Web.XmlTransform"), "Microsoft.Web.XmlTransform.dll should be available even though it is not on disk");
+        }
+
 
         //--------------------------------------------------
         [Test]
@@ -91,14 +106,14 @@ namespace Pandell.PackageRunner.Test
         /// <summary>
         /// Public key token of <c>(projectRoot)/src/Pandell.PackageRunner.snk</c>.
         /// </summary>
-        private static readonly byte[] KeyTokenValid = { 0xc4, 0xbc, 0xda, 0xb9, 0xe3, 0xe6, 0xe7, 0xfa };
+        [NotNull] private static readonly byte[] KeyTokenValid = { 0xc4, 0xbc, 0xda, 0xb9, 0xe3, 0xe6, 0xe7, 0xfa };
 
 
         //--------------------------------------------------
         /// <summary>
         /// Random invalid key token.
         /// </summary>
-        private static readonly byte[] KeyTokenInvalid = { 0x42, 0x24, 0x42, 0x24, 0x42, 0x24, 0x42, 0x24 };
+        [NotNull] private static readonly byte[] KeyTokenInvalid = { 0x42, 0x24, 0x42, 0x24, 0x42, 0x24, 0x42, 0x24 };
 
 
         //--------------------------------------------------
@@ -106,7 +121,7 @@ namespace Pandell.PackageRunner.Test
         /// Verify that unsigned assembly exists on disk,
         /// then load it.
         /// </summary>
-        private static Assembly LoadUnsignedAssembly()
+        [NotNull] private static Assembly LoadUnsignedAssembly()
         {
             const string unsignedAssemblyFileName = "../../src/Pandell.PackageRunner.Test/AssemblyExtensionsTests_UnsignedAssembly.dll";
             Assert.IsTrue(File.Exists(unsignedAssemblyFileName), "Unsigned assembly is missing");
