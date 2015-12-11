@@ -70,13 +70,6 @@ namespace Pandell.PackageRunner.Test
 
 
         //--------------------------------------------------
-        /// <summary>
-        /// We cannot use PackageRunner assembly, because it
-        /// will be signed with different key (the real Pandell
-        /// one) on TeamCity (where this test will also run).
-        /// The test assembly, however, will always be signed
-        /// with the source-controlled key.
-        /// </summary>
         [Test]
         public static void PublicKeyTokenEqualsTo_UnsignedAssembly_NeverMatches()
         {
@@ -95,14 +88,24 @@ namespace Pandell.PackageRunner.Test
         //**************************************************
 
         //--------------------------------------------------
+        /// <summary>
+        /// Public key token of <c>(projectRoot)/src/Pandell.PackageRunner.snk</c>.
+        /// </summary>
         private static readonly byte[] KeyTokenValid = { 0xc4, 0xbc, 0xda, 0xb9, 0xe3, 0xe6, 0xe7, 0xfa };
 
 
         //--------------------------------------------------
-        private static readonly byte[] KeyTokenInvalid = { 0x42 };
+        /// <summary>
+        /// Random invalid key token.
+        /// </summary>
+        private static readonly byte[] KeyTokenInvalid = { 0x42, 0x24, 0x42, 0x24, 0x42, 0x24, 0x42, 0x24 };
 
 
         //--------------------------------------------------
+        /// <summary>
+        /// Verify that unsigned assembly exists on disk,
+        /// then load it.
+        /// </summary>
         private static Assembly LoadUnsignedAssembly()
         {
             const string unsignedAssemblyFileName = "../../src/Pandell.PackageRunner.Test/AssemblyExtensionsTests_UnsignedAssembly.dll";
