@@ -8,19 +8,6 @@ namespace PackageRunner
     /// </summary>
     internal class AssemblyChecker
     {
-        private delegate bool VerifySignatureDelegate(string assemblyPath, bool forceCheck, out bool wasVerified);
-
-        private static readonly VerifySignatureDelegate VerifySignatureMethod = LoadVerifySignatureMethod();
-
-        private static VerifySignatureDelegate LoadVerifySignatureMethod()
-        {
-            var strongNameHelpers = typeof(AppDomain).Assembly.GetType("Microsoft.Runtime.Hosting.StrongNameHelpers");
-            if (strongNameHelpers == null) { throw new InvalidOperationException("StrongNameHelpers cannot be found in mscorlib."); }
-            var verifySignatureMethod = strongNameHelpers.GetMethod("StrongNameSignatureVerificationEx");
-            if (verifySignatureMethod == null) { throw new InvalidOperationException("StrongNameHelpers.StrongNameSignatureVerificationEx cannot be found in mscorlib."); }
-            return (VerifySignatureDelegate)verifySignatureMethod.CreateDelegate(typeof(VerifySignatureDelegate));
-        }
-
         /// <summary>
         /// Invokes <c>ICLRStrongName.StrongNameSignatureVerificationEx</c>
         /// (see https://msdn.microsoft.com/en-us/library/ff844054 for more info).
@@ -77,6 +64,19 @@ namespace PackageRunner
             var isPublicKeyTokenValid = IsPublicKeyTokenValid(fileName, expectedToken);
 
             return isStrongNameValid && isPublicKeyTokenValid;
+        }
+
+        private delegate bool VerifySignatureDelegate(string assemblyPath, bool forceCheck, out bool wasVerified);
+
+        private static readonly VerifySignatureDelegate VerifySignatureMethod = LoadVerifySignatureMethod();
+
+        private static VerifySignatureDelegate LoadVerifySignatureMethod()
+        {
+            var strongNameHelpers = typeof(AppDomain).Assembly.GetType("Microsoft.Runtime.Hosting.StrongNameHelpers");
+            if (strongNameHelpers == null) { throw new InvalidOperationException("StrongNameHelpers cannot be found in mscorlib."); }
+            var verifySignatureMethod = strongNameHelpers.GetMethod("StrongNameSignatureVerificationEx");
+            if (verifySignatureMethod == null) { throw new InvalidOperationException("StrongNameHelpers.StrongNameSignatureVerificationEx cannot be found in mscorlib."); }
+            return (VerifySignatureDelegate)verifySignatureMethod.CreateDelegate(typeof(VerifySignatureDelegate));
         }
     }
 }
