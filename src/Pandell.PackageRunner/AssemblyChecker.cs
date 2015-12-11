@@ -6,7 +6,7 @@ namespace PackageRunner
 {
     /// <summary>
     /// </summary>
-    internal class AssemblyChecker
+    public class AssemblyChecker
     {
         /// <summary>
         /// Invokes <c>ICLRStrongName.StrongNameSignatureVerificationEx</c>
