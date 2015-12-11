@@ -5,6 +5,8 @@ using System.Reflection;
 
 using JetBrains.Annotations;
 
+using NuGet;
+
 namespace PackageRunner
 {
 
@@ -33,11 +35,11 @@ namespace PackageRunner
                 .Select(s =>
                 {
                     using (var stream = assembly.GetManifestResourceStream(s))
-                    using (var ms = new MemoryStream())
                     {
-                        if (stream == null) { throw new InvalidOperationException("Embedded resource \"" + s + "\" is null");}
-                        stream.CopyTo(ms);
-                        return Assembly.Load(ms.ToArray());
+                        if (stream == null) { throw new InvalidDataException("Embedded resource \"" + s + "\" is null"); }
+                        var assemblyBytes = new byte[stream.Length];
+                        stream.Read(assemblyBytes, 0, assemblyBytes.Length);
+                        return Assembly.Load(assemblyBytes);
                     }
                 })
                 .ToArray();
