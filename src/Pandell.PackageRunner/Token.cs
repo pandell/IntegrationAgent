@@ -1,6 +1,6 @@
-/*
-* IMPORTANT: This file is modified during build process. Don't modify it unless build script is changed as well.
-*/
+//**************************************************
+//* IMPORTANT: This file is modified during build process. Don't modify it unless build script is changed as well.
+//**************************************************
 namespace PackageRunner
 {
     internal static class Token

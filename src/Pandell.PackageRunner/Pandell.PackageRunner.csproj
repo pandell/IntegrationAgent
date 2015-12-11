@@ -18,6 +18,7 @@
     <WarningLevel>4</WarningLevel>
     <NoWarn />
     <WarningsNotAsErrors />
+    <Prefer32Bit>false</Prefer32Bit>
   </PropertyGroup>
   <PropertyGroup>
     <BuildOutputDir Condition=" '$(BuildOutputDir)' == '' ">$(MSBuildThisFileDirectory)..\..\build\</BuildOutputDir>
@@ -35,15 +36,16 @@
     <Optimize>true</Optimize>
     <DefineConstants>CODE_ANALYSIS;TRACE</DefineConstants>
   </PropertyGroup>
-  <PropertyGroup>
-    <SignAssembly>true</SignAssembly>
-  </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Microsoft.Web.XmlTransform, Version=2.1.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+    <Reference Include="JetBrains.Annotations">
+      <HintPath>..\..\nuget_modules\JetBrains.Annotations.10.0.0\lib\net20\JetBrains.Annotations.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Microsoft.Web.XmlTransform">
       <HintPath>..\..\nuget_modules\Microsoft.Web.Xdt.2.1.1\lib\net40\Microsoft.Web.XmlTransform.dll</HintPath>
       <Private>True</Private>
     </Reference>
-    <Reference Include="NuGet.Core, Version=2.8.60717.93, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
+    <Reference Include="NuGet.Core">
       <HintPath>..\..\nuget_modules\NuGet.Core.2.8.6\lib\net40-Client\NuGet.Core.dll</HintPath>
       <Private>True</Private>
     </Reference>
@@ -54,7 +56,7 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="AssemblyChecker.cs" />
+    <Compile Include="AssemblyExtensions.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="FileLogging.cs" />
     <Compile Include="NugetCredentialProvider.cs" />
@@ -84,28 +86,26 @@
       <Token ParameterType="System.String" Required="true" />
     </ParameterGroup>
     <Task>
-      <Using Namespace="System.IO"/>
-      <Code Type="Fragment" Language="cs">
-        <![CDATA[
-            var tokenString = (this.Token ?? "").Replace("Public key token is ", "");
-            var tokenBytes = "";
-            for (var i = 0; i < tokenString.Length; i += 2)
-            {
-                tokenBytes += "0x" + tokenString.Substring(i, 2) + ", ";
-            }
-            var tokenFileLines = File.ReadAllLines("Token.cs");
-            if (tokenFileLines.Length != 10)
-            {
-                throw new InvalidOperationException("Token.cs file was not in the correct format (most likely missing or manually modified).");
-            }
-            if (!tokenFileLines[7].Contains(tokenBytes))
-            {
-                tokenFileLines[7] = "        public static readonly byte[] Bytes = { " + tokenBytes + "};"; 
-                File.WriteAllLines("Token.cs", tokenFileLines);
-                Log.LogMessage("Updating \"Token.cs\" to \"{0}\"", tokenString);
-            }
-        ]]>
-      </Code>
+      <Using Namespace="System.IO" />
+      <Code Type="Fragment" Language="cs"><![CDATA[
+        var tokenString = (this.Token ?? "").Replace("Public key token is ", "");
+        var tokenBytes = "";
+        for (var i = 0; i < tokenString.Length; i += 2)
+        {
+            tokenBytes += "0x" + tokenString.Substring(i, 2) + ", ";
+        }
+        var tokenFileLines = File.ReadAllLines("Token.cs");
+        if (tokenFileLines.Length != 10)
+        {
+            throw new InvalidOperationException("Token.cs file was not in the correct format (most likely missing or manually modified).");
+        }
+        if (!tokenFileLines[7].Contains(tokenBytes))
+        {
+            tokenFileLines[7] = "        public static readonly byte[] Bytes = { " + tokenBytes + "};";
+            File.WriteAllLines("Token.cs", tokenFileLines);
+            Log.LogMessage("Updating \"Token.cs\" to \"{0}\"", tokenString);
+        }
+      ]]></Code>
     </Task>
   </UsingTask>
   <Target Name="UpdatePublicKeyToken" BeforeTargets="BeforeBuild">
@@ -113,15 +113,15 @@
       <Output TaskParameter="Path" PropertyName="WindowsSdkPath" />
     </GetFrameworkSdkPath>
     <Exec Command="WHERE /r &quot;$(WindowsSdkPath.TrimEnd('\\'))&quot; sn" ConsoleToMSBuild="true">
-        <Output TaskParameter="ConsoleOutput" PropertyName="SNPath" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="SNPath" />
     </Exec>
     <PropertyGroup>
       <SNPath>$([System.Text.RegularExpressions.Regex]::Replace('$(SNPath)', ';.*', ''))</SNPath>
     </PropertyGroup>
-    <MakeDir Directories="$(BaseIntermediateOutputPath)$(Configuration)"/>
+    <MakeDir Directories="$(BaseIntermediateOutputPath)$(Configuration)" />
     <Exec Command="&quot;$(SNPath)&quot; -q -p &quot;$(AssemblyOriginatorKeyFile)&quot; $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" />
     <Exec Command="&quot;$(SNPath)&quot; -q -t $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
-        <Output TaskParameter="ConsoleOutput" PropertyName="Token" />
+      <Output TaskParameter="ConsoleOutput" PropertyName="Token" />
     </Exec>
     <UpdateTokenFile Token="$(Token)" />
   </Target>
