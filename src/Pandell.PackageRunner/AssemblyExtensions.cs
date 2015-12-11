@@ -9,6 +9,7 @@ namespace PackageRunner
 {
 
     /// <summary>
+    /// Extension methods for <see cref="Assembly"/> instances.
     /// </summary>
     /// <remarks>
     /// Unit tested in <c>Pandell.PackageRunner.Test.AssemblyExtensionsTests.</c>
@@ -18,7 +19,7 @@ namespace PackageRunner
 
         //--------------------------------------------------
         /// <summary>
-        /// Add all embedded assemblies (resources ending with ".dll")
+        /// Adds all embedded assemblies (resources ending with ".dll")
         /// from the specified assembly to <see cref="AppDomain.AssemblyResolve"/>
         /// handler (making them available for use without being on disk).
         /// </summary>

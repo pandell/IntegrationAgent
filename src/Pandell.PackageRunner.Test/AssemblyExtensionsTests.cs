@@ -92,7 +92,7 @@ namespace Pandell.PackageRunner.Test
             var equalsToValidToken = unsignedAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenValid);
             var equalsToInvalidToken = unsignedAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenInvalid);
 
-            Assert.False(equalsToValidToken, "Unsigned assembly public key token was expected to not match valid token");
+            Assert.IsFalse(equalsToValidToken, "Unsigned assembly public key token was expected to not match valid token");
             Assert.IsFalse(equalsToInvalidToken, "Unsigned assembly public key token was expected to not match invalid token");
         }
 
@@ -118,8 +118,8 @@ namespace Pandell.PackageRunner.Test
 
         //--------------------------------------------------
         /// <summary>
-        /// Verify that unsigned assembly exists on disk,
-        /// then load it.
+        /// Verifies that unsigned assembly exists on disk,
+        /// then loads it.
         /// </summary>
         [NotNull] private static Assembly LoadUnsignedAssembly()
         {
