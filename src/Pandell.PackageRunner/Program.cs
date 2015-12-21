@@ -54,36 +54,34 @@ namespace PackageRunner
             var packageRunnerAssembly = Assembly.GetExecutingAssembly();
             var packageRunnerExeFileName = packageRunnerAssembly.GetCodeBasePath();
             var packageRunnerExeDirectory = Path.GetDirectoryName(packageRunnerExeFileName) ?? ".";
-            var logFile = Path.Combine(packageRunnerExeDirectory, Path.GetFileNameWithoutExtension(packageRunnerExeFileName) + ".log");
 
-            var log = new FileLogging(logFile);
             try
             {
                 packageRunnerAssembly.EnableResolvingOfEmbeddedAssemblies();
                 var program = new Program();
-                program.Run(packageRunnerAssembly, packageRunnerExeFileName, packageRunnerExeDirectory, log, args);
+                program.Run(packageRunnerAssembly, packageRunnerExeFileName, packageRunnerExeDirectory, args);
             }
             catch (Exception ex)
             {
-                log.AddLine(ex.Message);
+                Console.Error.WriteLine(ex.Message);
             }
         }
 
         /// <summary>
         /// </summary>
-        private void Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, FileLogging log, string[] args)
+        private void Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, string[] args)
         {
             var parameters = ParseArguments(args);
 
             // Verify that assembly is signed and uses the correct key
             if (!packageRunnerAssembly.HasValidStrongName())
             {
-                log.AddLine("Unsigned assembly.");
+                Console.Error.WriteLine("Unsigned assembly.");
                 return;
             }
             if (!packageRunnerAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
             {
-                log.AddLine("Invalid assembly.");
+                Console.Error.WriteLine("Invalid assembly.");
                 return;
             }
 
@@ -116,7 +114,7 @@ namespace PackageRunner
 
             if (string.IsNullOrWhiteSpace(configuration.package) && string.IsNullOrEmpty(configuration.token))
             {
-                log.AddLine("Invalid configuration!");
+                Console.Error.WriteLine("Invalid configuration!");
                 return;
             }
 
@@ -177,7 +175,7 @@ namespace PackageRunner
             var localPackage = localRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             if (localPackage == null)
             {
-                log.AddLine("Package not found!");
+                Console.Error.WriteLine("Package not found!");
                 return;
             }
 
