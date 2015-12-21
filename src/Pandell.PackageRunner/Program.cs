@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Web.Script.Serialization;
+
 using NuGet;
 
 namespace PackageRunner
@@ -37,7 +38,7 @@ namespace PackageRunner
 
     /// <summary>
     /// </summary>
-    class Program
+    internal sealed class Program
     {
         /// <summary />
         [Import("PackageRunnerMain", AllowDefault = true, AllowRecomposition = false, RequiredCreationPolicy = CreationPolicy.Any, Source = ImportSource.Any)]
@@ -50,40 +51,17 @@ namespace PackageRunner
         /// </summary>
         private static void Main(string[] args)
         {
-            var assembly = Assembly.GetExecutingAssembly();
-            var assemblyName = assembly.GetName();
-            var programFile = assembly.Location;
-            var programDirectory = Path.GetDirectoryName(programFile) ?? ".";
-            var logFile = Path.Combine(programDirectory, assemblyName.Name + ".log");
+            var packageRunnerAssembly = Assembly.GetExecutingAssembly();
+            var packageRunnerExeFileName = packageRunnerAssembly.GetCodeBasePath();
+            var packageRunnerExeDirectory = Path.GetDirectoryName(packageRunnerExeFileName) ?? ".";
+            var logFile = Path.Combine(packageRunnerExeDirectory, Path.GetFileNameWithoutExtension(packageRunnerExeFileName) + ".log");
 
             var log = new FileLogging(logFile);
             try
             {
-
-                var embeddedAssemblies = assembly
-                    .GetManifestResourceNames()
-                    .Where(s => s.EndsWith(".dll"))
-                    .Select(s =>
-                    {
-                        byte[] rawAssembly;
-                        using (var stream = assembly.GetManifestResourceStream(s) ?? new MemoryStream(0))
-                        using (var ms = new MemoryStream())
-                        {
-                            stream.CopyTo(ms);
-                            rawAssembly = ms.ToArray();
-                        }
-                        return Assembly.Load(rawAssembly);
-                    })
-                    .ToDictionary(a => a.FullName);
-
-                AppDomain.CurrentDomain.AssemblyResolve += (sender, eventArgs) =>
-                {
-                    var aname = new AssemblyName(eventArgs.Name);
-                    return embeddedAssemblies.ContainsKey(aname.FullName) ? embeddedAssemblies[aname.FullName] : null;
-                };
-
+                packageRunnerAssembly.EnableResolvingOfEmbeddedAssemblies();
                 var program = new Program();
-                program.Run(assemblyName, programFile, programDirectory, log, args);
+                program.Run(packageRunnerAssembly, packageRunnerExeFileName, packageRunnerExeDirectory, log, args);
             }
             catch (Exception ex)
             {
@@ -93,26 +71,31 @@ namespace PackageRunner
 
         /// <summary>
         /// </summary>
-        private void Run(AssemblyName assemblyName, string programFile, string programDirectory, FileLogging log, string[] args)
+        private void Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, FileLogging log, string[] args)
         {
             var parameters = ParseArguments(args);
 
             // Verify that assembly is signed and uses the correct key
-            if (!AssemblyChecker.IsValid(programFile, Token.Bytes))
+            if (!packageRunnerAssembly.HasValidStrongName())
             {
-                log.AddLine("Invalid assembly!");
+                log.AddLine("Unsigned assembly.");
+                return;
+            }
+            if (!packageRunnerAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
+            {
+                log.AddLine("Invalid assembly.");
                 return;
             }
 
             // If no JSON config file name provided as paramter uses the application name
-            var configFile = Path.Combine(programDirectory, assemblyName.Name + ".json");
+            var configFile = Path.Combine(packageRunnerExeDirectory, Path.GetFileNameWithoutExtension(packageRunnerExeFileName) + ".json");
             if (!string.IsNullOrEmpty(parameters.Config))
             {
                 if (!parameters.Config.EndsWith(".json"))
                 {
                     parameters.Config = parameters.Config + ".json";
                 }
-                configFile = Path.Combine(programDirectory, parameters.Config);
+                configFile = Path.Combine(packageRunnerExeDirectory, parameters.Config);
             }
 
             // Check and reads the configuration file
@@ -123,7 +106,7 @@ namespace PackageRunner
                 var jsonSerializer = new JavaScriptSerializer();
                 configuration = jsonSerializer.Deserialize<Configuration>(configJson) ?? configuration;
             }
-            
+
             // Merges config file and command line parameters. Command line paramters have precedence.
             configuration.package = parameters.Package ?? configuration.package;
             configuration.token = parameters.Token ?? configuration.token;
@@ -134,7 +117,7 @@ namespace PackageRunner
             if (string.IsNullOrWhiteSpace(configuration.package) && string.IsNullOrEmpty(configuration.token))
             {
                 log.AddLine("Invalid configuration!");
-                return;                
+                return;
             }
 
             // Initializes NuGet repositories
@@ -156,32 +139,33 @@ namespace PackageRunner
             // Perform auto-update if not disabled
             if (!parameters.DisableUpdates)
             {
-                var version = new SemanticVersion(assemblyName.Version);
+                var packageRunnerAssemblyName = packageRunnerAssembly.GetName();
+                var version = new SemanticVersion(packageRunnerAssemblyName.Version);
                 var package = aggregateRepository
-                    .GetUpdates(new[] { new PackageName(assemblyName.Name, version) }, includePrerelease: false, includeAllVersions: false)
+                    .GetUpdates(new[] { new PackageName(packageRunnerAssemblyName.Name, version) }, includePrerelease: false, includeAllVersions: false)
                     .OrderBy(p => p.Version)
                     .LastOrDefault();
 
                 if (package != null && package.Version > version)
                 {
-                    var filename = Path.GetFileName(programFile);
+                    var filename = Path.GetFileName(packageRunnerExeFileName);
                     var file = package.GetFiles().FirstOrDefault(f => !string.IsNullOrEmpty(f.Path) && Path.GetFileName(f.Path).Equals(filename, StringComparison.OrdinalIgnoreCase));
                     if (file != null)
                     {
-                        File.Delete(programFile + ".bak");
-                        File.Move(programFile, programFile + ".bak");
-                        using (Stream fromStream = file.GetStream(), toStream = File.Create(programFile))
+                        File.Delete(packageRunnerExeFileName + ".bak");
+                        File.Move(packageRunnerExeFileName, packageRunnerExeFileName + ".bak");
+                        using (Stream fromStream = file.GetStream(), toStream = File.Create(packageRunnerExeFileName))
                         {
                             fromStream.CopyTo(toStream);
                         }
-                        Process.Start(programFile, string.Join(" ", args) + " -disableupdates");
+                        Process.Start(packageRunnerExeFileName, string.Join(" ", args) + " -disableupdates");
                         Environment.Exit(0);
                     }
                 }
             }
 
             // Install the package to run including its dependencies
-            var packagesPath = Path.Combine(programDirectory, "packages");
+            var packagesPath = Path.Combine(packageRunnerExeDirectory, "packages");
             var remotePackage = aggregateRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             var localRepository = new SharedPackageRepository(packagesPath);
             if (!localRepository.Exists(remotePackage))
@@ -232,6 +216,7 @@ namespace PackageRunner
             }
         }
 
+
         /// <summary>
         /// </summary>
         private static Parameters ParseArguments(IEnumerable<string> args)
@@ -266,5 +251,7 @@ namespace PackageRunner
 
             return parameters;
         }
+
     }
+
 }
