@@ -36,6 +36,9 @@
     <Optimize>true</Optimize>
     <DefineConstants>CODE_ANALYSIS;TRACE</DefineConstants>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>PliIcon.ico</ApplicationIcon>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="JetBrains.Annotations">
       <HintPath>..\..\nuget_modules\JetBrains.Annotations.10.0.0\lib\net20\JetBrains.Annotations.dll</HintPath>
@@ -76,6 +79,9 @@
       <Link>Properties\Pandell.PackageRunner.snk</Link>
     </None>
     <Compile Include="Token.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="PliIcon.ico" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <UsingTask TaskName="UpdateTokenFile" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.v4.0.dll">
