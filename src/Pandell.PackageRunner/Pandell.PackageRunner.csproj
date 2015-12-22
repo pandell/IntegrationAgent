@@ -5,7 +5,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{7417D3FF-4794-406A-B2B5-073332B72511}</ProjectGuid>
-    <OutputType>WinExe</OutputType>
+    <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>PackageRunner</RootNamespace>
     <AssemblyName>PackageRunner</AssemblyName>
@@ -59,7 +59,6 @@
   <ItemGroup>
     <Compile Include="AssemblyExtensions.cs" />
     <Compile Include="Extensions.cs" />
-    <Compile Include="FileLogging.cs" />
     <Compile Include="NugetCredentialProvider.cs" />
     <None Include="Packages.config" />
     <Compile Include="Program.cs" />
