@@ -49,40 +49,49 @@ namespace PackageRunner
 
         /// <summary>
         /// </summary>
-        private static void Main(string[] args)
+        private static int Main(string[] args)
         {
-            var packageRunnerAssembly = Assembly.GetExecutingAssembly();
-            var packageRunnerExeFileName = packageRunnerAssembly.GetCodeBasePath();
-            var packageRunnerExeDirectory = Path.GetDirectoryName(packageRunnerExeFileName) ?? ".";
-
             try
             {
+                var packageRunnerAssembly = Assembly.GetExecutingAssembly();
+                var packageRunnerExeFileName = packageRunnerAssembly.GetCodeBasePath();
+                var packageRunnerExeDirectory = Path.GetDirectoryName(packageRunnerExeFileName) ?? ".";
+
                 packageRunnerAssembly.EnableResolvingOfEmbeddedAssemblies();
                 var program = new Program();
-                program.Run(packageRunnerAssembly, packageRunnerExeFileName, packageRunnerExeDirectory, args);
+                return program.Run(packageRunnerAssembly, packageRunnerExeFileName, packageRunnerExeDirectory, args);
             }
             catch (Exception ex)
             {
+                var originalColor = Console.ForegroundColor;
+                Console.ForegroundColor = ConsoleColor.Red;
                 Console.Error.WriteLine(ex.Message);
+                if (ex.InnerException != null)
+                {
+                    Console.Error.WriteLine("InnerException:");
+                    Console.Error.WriteLine(ex.InnerException.Message);
+                }
+                Console.ForegroundColor = originalColor;
+                return -1;
             }
         }
 
         /// <summary>
         /// </summary>
-        private void Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, string[] args)
+        private int Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, string[] args)
         {
-            var parameters = ParseArguments(args);
+            var parameters = Program.ParseArguments(args);
 
             // Verify that assembly is signed and uses the correct key
             if (!packageRunnerAssembly.HasValidStrongName())
             {
                 Console.Error.WriteLine("Unsigned assembly.");
-                return;
+                return 1;
             }
             if (!packageRunnerAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
             {
                 Console.Error.WriteLine("Invalid assembly.");
-                return;
+                return 2;
             }
 
             // If no JSON config file name provided as paramter uses the application name
@@ -115,7 +124,7 @@ namespace PackageRunner
             if (string.IsNullOrWhiteSpace(configuration.package) && string.IsNullOrEmpty(configuration.token))
             {
                 Console.Error.WriteLine("Invalid configuration!");
-                return;
+                return 3;
             }
 
             // Initializes NuGet repositories
@@ -176,7 +185,7 @@ namespace PackageRunner
             if (localPackage == null)
             {
                 Console.Error.WriteLine("Package not found!");
-                return;
+                return 4;
             }
 
             // Build a dictionary list of assemblies based on assembly fully qualified name for dynamically resolving from the loaded package
@@ -207,10 +216,13 @@ namespace PackageRunner
             using (var container = new CompositionContainer(catalog))
             {
                 container.SatisfyImportsOnce(this);
-                if (RunAssembly != null)
+                if (this.RunAssembly == null)
                 {
-                    RunAssembly(configuration.token);
+                    Console.Error.WriteLine("Method not found!");
+                    return 5;
                 }
+                this.RunAssembly(configuration.token);
+                return 0;
             }
         }
 
