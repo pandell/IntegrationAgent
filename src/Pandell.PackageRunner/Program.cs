@@ -23,6 +23,9 @@ namespace PackageRunner
         public string RepositoryPassword;
         public string Config;
         public bool DisableUpdates;
+        public bool ShowHelp;
+        public bool ShowVersion;
+        public bool VerboseLog;
     }
 
     /// <summary>
@@ -81,20 +84,41 @@ namespace PackageRunner
         private int Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, string[] args)
         {
             var parameters = Program.ParseArguments(args);
+            var applicationName = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
+            var fileVersion = FileVersionInfo.GetVersionInfo(packageRunnerAssembly.Location).FileVersion;
+
+            if (parameters.ShowVersion || parameters.ShowHelp)
+            {
+                Console.WriteLine(applicationName + " v" + fileVersion);
+            }
+
+            if (parameters.ShowHelp)
+            {
+                Program.ShowHelp(applicationName);
+            }
+
+            if (parameters.ShowVersion || parameters.ShowHelp)
+            {
+                return 0;
+            }
 
             // Verify that assembly is signed and uses the correct key
+            var verbose = parameters.VerboseLog;
+            Program.WriteLine(verbose, "Checking assembly strong name.");
             if (!packageRunnerAssembly.HasValidStrongName())
             {
-                Console.Error.WriteLine("Unsigned assembly.");
+                Console.Error.WriteLine("Unsigned assembly!");
                 return 1;
             }
+            Program.WriteLine(verbose, "Checking is assembly signature correct.");
             if (!packageRunnerAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
             {
-                Console.Error.WriteLine("Invalid assembly.");
+                Console.Error.WriteLine("Invalid assembly!");
                 return 2;
             }
 
             // If no JSON config file name provided as paramter uses the application name
+            Program.WriteLine(verbose, "Looking for JSON config file.");
             var configFile = Path.Combine(packageRunnerExeDirectory, Path.GetFileNameWithoutExtension(packageRunnerExeFileName) + ".json");
             if (!string.IsNullOrEmpty(parameters.Config))
             {
@@ -109,9 +133,11 @@ namespace PackageRunner
             var configuration = new Configuration();
             if (File.Exists(configFile))
             {
+                Program.WriteLine(verbose, "Reading the JSON config file.");
                 var configJson = File.ReadAllText(configFile);
                 var jsonSerializer = new JavaScriptSerializer();
                 configuration = jsonSerializer.Deserialize<Configuration>(configJson) ?? configuration;
+                Program.WriteLine(verbose, "JSON config file loaded.");
             }
 
             // Merges config file and command line parameters. Command line paramters have precedence.
@@ -121,6 +147,7 @@ namespace PackageRunner
             configuration.repositoryUsername = parameters.RepositoryUsername ?? configuration.repositoryUsername;
             configuration.repositoryPassword = parameters.RepositoryPassword ?? configuration.repositoryPassword;
 
+            Program.WriteLine(verbose, "Checking input parameters.");
             if (string.IsNullOrWhiteSpace(configuration.package) && string.IsNullOrEmpty(configuration.token))
             {
                 Console.Error.WriteLine("Invalid configuration!");
@@ -128,6 +155,7 @@ namespace PackageRunner
             }
 
             // Initializes NuGet repositories
+            Program.WriteLine(verbose, "Initializes NuGet repositories.");
             var nugetRepository = new DataServicePackageRepository(new Uri(NuGetRepository));
             var aggregateRepository = new AggregateRepository(new[] { nugetRepository });
             if (Uri.IsWellFormedUriString(configuration.repository, UriKind.Absolute))
@@ -146,6 +174,7 @@ namespace PackageRunner
             // Perform auto-update if not disabled
             if (!parameters.DisableUpdates)
             {
+                Program.WriteLine(verbose, "Checking for self update.");
                 var packageRunnerAssemblyName = packageRunnerAssembly.GetName();
                 var version = new SemanticVersion(packageRunnerAssemblyName.Version);
                 var package = aggregateRepository
@@ -155,6 +184,7 @@ namespace PackageRunner
 
                 if (package != null && package.Version > version)
                 {
+                    Program.WriteLine(verbose, "Newer version found. Updating files.");
                     var filename = Path.GetFileName(packageRunnerExeFileName);
                     var file = package.GetFiles().FirstOrDefault(f => !string.IsNullOrEmpty(f.Path) && Path.GetFileName(f.Path).Equals(filename, StringComparison.OrdinalIgnoreCase));
                     if (file != null)
@@ -169,14 +199,20 @@ namespace PackageRunner
                         Environment.Exit(0);
                     }
                 }
+                else
+                {
+                    Program.WriteLine(verbose, "Version is up to date.");
+                }
             }
 
             // Install the package to run including its dependencies
+            Program.WriteLine(verbose, "Checking for execution package.");
             var packagesPath = Path.Combine(packageRunnerExeDirectory, "packages");
             var remotePackage = aggregateRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             var localRepository = new SharedPackageRepository(packagesPath);
             if (!localRepository.Exists(remotePackage))
             {
+                Program.WriteLine(verbose, "Execution package not found localy. Installing remote.");
                 var packageManager = new PackageManager(aggregateRepository, packagesPath);
                 packageManager.InstallPackage(remotePackage, ignoreDependencies: false, allowPrereleaseVersions: false);
             }
@@ -189,6 +225,7 @@ namespace PackageRunner
             }
 
             // Build a dictionary list of assemblies based on assembly fully qualified name for dynamically resolving from the loaded package
+            Program.WriteLine(verbose, "Resolve and update execution package dependencies.");
             var allAssemblies = localRepository
                 .GetPackages()
                 .ToArray()
@@ -215,17 +252,29 @@ namespace PackageRunner
             using (var catalog = new AggregateCatalog(assemblies))
             using (var container = new CompositionContainer(catalog))
             {
+                Program.WriteLine(verbose, "Resolving execution delegate.");
                 container.SatisfyImportsOnce(this);
                 if (this.RunAssembly == null)
                 {
                     Console.Error.WriteLine("Method not found!");
                     return 5;
                 }
+                Program.WriteLine(verbose, "Executing delegate.");
                 this.RunAssembly(configuration.token);
+                Program.WriteLine(verbose, "Delegate execution done.");
                 return 0;
             }
         }
 
+        /// <summary>
+        /// </summary>
+        private static void WriteLine(bool outputActive, string message, object[] args = null)
+        {
+            if (outputActive)
+            {
+                Console.WriteLine(message, args);
+            }
+        }
 
         /// <summary>
         /// </summary>
@@ -245,7 +294,10 @@ namespace PackageRunner
                 new { names = new [] {"username", "u"}, parse = new Action<string>(val => { parameters.RepositoryUsername = val; } )},
                 new { names = new [] {"password", "w"}, parse = new Action<string>(val => { parameters.RepositoryPassword = val; } )},
                 new { names = new [] {"config", "c"}, parse = new Action<string>(val => { parameters.Config = val; } )},
-                new { names = new [] {"disableupdates", "d"}, parse = new Action<string>(val => { parameters.DisableUpdates = true; } )}
+                new { names = new [] {"disableupdates", "d"}, parse = new Action<string>(val => { parameters.DisableUpdates = true; } )},
+                new { names = new [] {"help", "h"}, parse = new Action<string>(val => { parameters.ShowHelp = true; } )},
+                new { names = new [] {"version", "v"}, parse = new Action<string>(val => { parameters.ShowVersion = true; } )},
+                new { names = new [] {"verbose"}, parse = new Action<string>(val => { parameters.VerboseLog = true; } )}
             };
 
             foreach (var parameter in parameterDefinitions)
@@ -260,6 +312,33 @@ namespace PackageRunner
             }
 
             return parameters;
+        }
+
+        /// <summary>
+        /// </summary>
+        private static void ShowHelp(string applicationName)
+        {
+            Console.WriteLine(@"
+Runs a code from a NuGet package.
+
+Usage: 
+{0} (-c:Filename | -p:Package -t:Token [-r:Repository] [-u:Username] [-p:Password]) [-d] [-h] [-v]
+
+Where:
+-c:Filename (also --config:Filename), Specifies a JSON configuration file for input parameters. Not used if other parameters are specified.
+-p:Package (also --package:Package), Specifies the NuGet package name to execute. Required if --config is not used.
+-t:Token (also --token:Token), Specifies a JWT token to pass to the execution method as parameter. Required if --config is not used.
+-r:Repository (also --repository:Repository), An optional repository to look for the NuGet package and it's dependencies. If not provided only the public NuGet repository is used.
+-u:Username (also --username:Username), An optional username for the repository
+-p:Password (also --password:Password), An optional password for the repository
+-d (also --disableupdates), A switch to disable autoupdate of the {0}
+-v (also --version), Displays the {0} version and exits
+-h (also --help), Displays this help and exits
+
+Examples:
+{0} -c:ConfigFile.json
+{0} -p:Package.Name -t:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
+", applicationName);
         }
 
     }
