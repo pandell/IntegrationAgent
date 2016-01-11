@@ -41,15 +41,11 @@ namespace PackageRunner
 
     /// <summary>
     /// </summary>
-    public delegate void WriteDiagnosticsMessage(TraceLevel traceLevel, string message, params object[] messageParams);
-
-    /// <summary>
-    /// </summary>
     internal sealed class Program
     {
         /// <summary />
         [Import("PackageRunnerMain", AllowDefault = true, AllowRecomposition = false, RequiredCreationPolicy = CreationPolicy.Any, Source = ImportSource.Any)]
-        public Action<string, WriteDiagnosticsMessage> RunAssembly { get; set; }
+        public Action<string, Action<TraceLevel, string>> RunAssembly { get; set; }
 
         /// <summary />
         private const string NuGetRepository = "https://www.nuget.org/api/v2/";
@@ -268,7 +264,7 @@ namespace PackageRunner
 
         /// <summary>
         /// </summary>
-        public static void WriteDiagnosticsMessage(TraceLevel traceLevel, string message, params object[] args)
+        public static void WriteDiagnosticsMessage(TraceLevel traceLevel, string message)
         {
             ConsoleColor originalColor;
             switch (traceLevel)
@@ -278,20 +274,20 @@ namespace PackageRunner
                 case TraceLevel.Error:
                     originalColor = Console.ForegroundColor;
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.Error.WriteLine(message, args);
+                    Console.Error.WriteLine(message);
                     Console.ForegroundColor = originalColor;
                     break;
                 case TraceLevel.Verbose:
-                    Console.Error.WriteLine(message, args);
+                    Console.Error.WriteLine(message);
                     break;
                 case TraceLevel.Warning:
                     originalColor = Console.ForegroundColor;
                     Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine(message, args);
+                    Console.WriteLine(message);
                     Console.ForegroundColor = originalColor;
                     break;
                 case TraceLevel.Info:
-                    Console.WriteLine(message, args);
+                    Console.WriteLine(message);
                     break;
             }
         }
