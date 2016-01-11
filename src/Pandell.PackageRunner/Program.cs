@@ -41,11 +41,15 @@ namespace PackageRunner
 
     /// <summary>
     /// </summary>
+    public delegate void WriteDiagnosticsMessage(TraceLevel traceLevel, string message, params object[] messageParams);
+
+    /// <summary>
+    /// </summary>
     internal sealed class Program
     {
         /// <summary />
         [Import("PackageRunnerMain", AllowDefault = true, AllowRecomposition = false, RequiredCreationPolicy = CreationPolicy.Any, Source = ImportSource.Any)]
-        public Action<string> RunAssembly { get; set; }
+        public Action<string, WriteDiagnosticsMessage> RunAssembly { get; set; }
 
         /// <summary />
         private const string NuGetRepository = "https://www.nuget.org/api/v2/";
@@ -66,15 +70,11 @@ namespace PackageRunner
             }
             catch (Exception ex)
             {
-                var originalColor = Console.ForegroundColor;
-                Console.ForegroundColor = ConsoleColor.Red;
-                Console.Error.WriteLine(ex.Message);
+                Program.WriteDiagnosticsMessage(TraceLevel.Error, ex.Message);
                 if (ex.InnerException != null)
                 {
-                    Console.Error.WriteLine("InnerException:");
-                    Console.Error.WriteLine(ex.InnerException.Message);
+                    Program.WriteDiagnosticsMessage(TraceLevel.Error, ex.InnerException.Message);
                 }
-                Console.ForegroundColor = originalColor;
                 return -1;
             }
         }
@@ -84,17 +84,16 @@ namespace PackageRunner
         private int Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, string[] args)
         {
             var parameters = Program.ParseArguments(args);
-            var applicationName = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
             var fileVersion = FileVersionInfo.GetVersionInfo(packageRunnerAssembly.Location).FileVersion;
 
             if (parameters.ShowVersion || parameters.ShowHelp)
             {
-                Console.WriteLine(applicationName + " v" + fileVersion);
+                Console.WriteLine("PackageRunner  v" + fileVersion);
             }
 
             if (parameters.ShowHelp)
             {
-                Program.ShowHelp(applicationName);
+                Program.ShowHelp();
             }
 
             if (parameters.ShowVersion || parameters.ShowHelp)
@@ -104,21 +103,22 @@ namespace PackageRunner
 
             // Verify that assembly is signed and uses the correct key
             var verbose = parameters.VerboseLog;
-            Program.WriteLine(verbose, "Checking assembly strong name.");
+            Action<string> writeVerboseMessage = message => Program.WriteDiagnosticsMessage(verbose ? TraceLevel.Verbose : TraceLevel.Off, message);
+            writeVerboseMessage("Checking assembly strong name.");
             if (!packageRunnerAssembly.HasValidStrongName())
             {
-                Console.Error.WriteLine("Unsigned assembly!");
+                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Unsigned assembly!");
                 return 1;
             }
-            Program.WriteLine(verbose, "Checking is assembly signature correct.");
+            writeVerboseMessage("Verifying assembly signature.");
             if (!packageRunnerAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
             {
-                Console.Error.WriteLine("Invalid assembly!");
+                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Invalid assembly!");
                 return 2;
             }
 
             // If no JSON config file name provided as paramter uses the application name
-            Program.WriteLine(verbose, "Looking for JSON config file.");
+            writeVerboseMessage("Looking for JSON config file.");
             var configFile = Path.Combine(packageRunnerExeDirectory, Path.GetFileNameWithoutExtension(packageRunnerExeFileName) + ".json");
             if (!string.IsNullOrEmpty(parameters.Config))
             {
@@ -133,11 +133,11 @@ namespace PackageRunner
             var configuration = new Configuration();
             if (File.Exists(configFile))
             {
-                Program.WriteLine(verbose, "Reading the JSON config file.");
+                writeVerboseMessage("Reading the JSON config file.");
                 var configJson = File.ReadAllText(configFile);
                 var jsonSerializer = new JavaScriptSerializer();
                 configuration = jsonSerializer.Deserialize<Configuration>(configJson) ?? configuration;
-                Program.WriteLine(verbose, "JSON config file loaded.");
+                writeVerboseMessage("JSON config file loaded.");
             }
 
             // Merges config file and command line parameters. Command line paramters have precedence.
@@ -147,15 +147,15 @@ namespace PackageRunner
             configuration.repositoryUsername = parameters.RepositoryUsername ?? configuration.repositoryUsername;
             configuration.repositoryPassword = parameters.RepositoryPassword ?? configuration.repositoryPassword;
 
-            Program.WriteLine(verbose, "Checking input parameters.");
+            writeVerboseMessage("Checking input parameters.");
             if (string.IsNullOrWhiteSpace(configuration.package) && string.IsNullOrEmpty(configuration.token))
             {
-                Console.Error.WriteLine("Invalid configuration!");
+                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Invalid configuration!");
                 return 3;
             }
 
             // Initializes NuGet repositories
-            Program.WriteLine(verbose, "Initializes NuGet repositories.");
+            writeVerboseMessage("Initializing NuGet repositories.");
             var nugetRepository = new DataServicePackageRepository(new Uri(NuGetRepository));
             var aggregateRepository = new AggregateRepository(new[] { nugetRepository });
             if (Uri.IsWellFormedUriString(configuration.repository, UriKind.Absolute))
@@ -174,7 +174,7 @@ namespace PackageRunner
             // Perform auto-update if not disabled
             if (!parameters.DisableUpdates)
             {
-                Program.WriteLine(verbose, "Checking for self update.");
+                writeVerboseMessage("Checking for self update.");
                 var packageRunnerAssemblyName = packageRunnerAssembly.GetName();
                 var version = new SemanticVersion(packageRunnerAssemblyName.Version);
                 var package = aggregateRepository
@@ -184,7 +184,7 @@ namespace PackageRunner
 
                 if (package != null && package.Version > version)
                 {
-                    Program.WriteLine(verbose, "Newer version found. Updating files.");
+                    writeVerboseMessage("Newer version found. Updating files.");
                     var filename = Path.GetFileName(packageRunnerExeFileName);
                     var file = package.GetFiles().FirstOrDefault(f => !string.IsNullOrEmpty(f.Path) && Path.GetFileName(f.Path).Equals(filename, StringComparison.OrdinalIgnoreCase));
                     if (file != null)
@@ -201,18 +201,18 @@ namespace PackageRunner
                 }
                 else
                 {
-                    Program.WriteLine(verbose, "Version is up to date.");
+                    writeVerboseMessage("Version is up to date.");
                 }
             }
 
             // Install the package to run including its dependencies
-            Program.WriteLine(verbose, "Checking for execution package.");
+            writeVerboseMessage("Checking for execution package.");
             var packagesPath = Path.Combine(packageRunnerExeDirectory, "packages");
             var remotePackage = aggregateRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             var localRepository = new SharedPackageRepository(packagesPath);
             if (!localRepository.Exists(remotePackage))
             {
-                Program.WriteLine(verbose, "Execution package not found localy. Installing remote.");
+                writeVerboseMessage("Execution package not found localy. Installing remote.");
                 var packageManager = new PackageManager(aggregateRepository, packagesPath);
                 packageManager.InstallPackage(remotePackage, ignoreDependencies: false, allowPrereleaseVersions: false);
             }
@@ -220,12 +220,12 @@ namespace PackageRunner
             var localPackage = localRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             if (localPackage == null)
             {
-                Console.Error.WriteLine("Package not found!");
+                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Package not found!");
                 return 4;
             }
 
             // Build a dictionary list of assemblies based on assembly fully qualified name for dynamically resolving from the loaded package
-            Program.WriteLine(verbose, "Resolve and update execution package dependencies.");
+            writeVerboseMessage("Resolving execution package dependencies.");
             var allAssemblies = localRepository
                 .GetPackages()
                 .ToArray()
@@ -252,27 +252,47 @@ namespace PackageRunner
             using (var catalog = new AggregateCatalog(assemblies))
             using (var container = new CompositionContainer(catalog))
             {
-                Program.WriteLine(verbose, "Resolving execution delegate.");
+                writeVerboseMessage("Resolving execution package entry point.");
                 container.SatisfyImportsOnce(this);
                 if (this.RunAssembly == null)
                 {
-                    Console.Error.WriteLine("Method not found!");
+                    Program.WriteDiagnosticsMessage(TraceLevel.Error, "Execution package extry point not found!");
                     return 5;
                 }
-                Program.WriteLine(verbose, "Executing delegate.");
-                this.RunAssembly(configuration.token);
-                Program.WriteLine(verbose, "Delegate execution done.");
+                writeVerboseMessage("Invoking execution package extry point.");
+                this.RunAssembly(configuration.token, Program.WriteDiagnosticsMessage);
+                writeVerboseMessage("Execution package finished successfully.");
                 return 0;
             }
         }
 
         /// <summary>
         /// </summary>
-        private static void WriteLine(bool outputActive, string message, object[] args = null)
+        public static void WriteDiagnosticsMessage(TraceLevel traceLevel, string message, params object[] args)
         {
-            if (outputActive)
+            ConsoleColor originalColor;
+            switch (traceLevel)
             {
-                Console.WriteLine(message, args);
+                case TraceLevel.Off:
+                    break;
+                case TraceLevel.Error:
+                    originalColor = Console.ForegroundColor;
+                    Console.ForegroundColor = ConsoleColor.Red;
+                    Console.Error.WriteLine(message, args);
+                    Console.ForegroundColor = originalColor;
+                    break;
+                case TraceLevel.Verbose:
+                    Console.Error.WriteLine(message, args);
+                    break;
+                case TraceLevel.Warning:
+                    originalColor = Console.ForegroundColor;
+                    Console.ForegroundColor = ConsoleColor.Yellow;
+                    Console.WriteLine(message, args);
+                    Console.ForegroundColor = originalColor;
+                    break;
+                case TraceLevel.Info:
+                    Console.WriteLine(message, args);
+                    break;
             }
         }
 
@@ -316,7 +336,7 @@ namespace PackageRunner
 
         /// <summary>
         /// </summary>
-        private static void ShowHelp(string applicationName)
+        private static void ShowHelp()
         {
             Console.WriteLine(@"
 Runs a code from a NuGet package.
@@ -334,11 +354,12 @@ Where:
 -d (also --disableupdates), A switch to disable autoupdate of the {0}
 -v (also --version), Displays the {0} version and exits
 -h (also --help), Displays this help and exits
+-verbose, Displays verbose progress information
 
 Examples:
 {0} -c:ConfigFile.json
 {0} -p:Package.Name -t:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
-", applicationName);
+", "PackageRunner ");
         }
 
     }
