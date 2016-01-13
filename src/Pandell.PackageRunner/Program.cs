@@ -25,7 +25,7 @@ namespace PackageRunner
         public bool DisableUpdates;
         public bool ShowHelp;
         public bool ShowVersion;
-        public bool VerboseLog;
+        public TraceLevel TraceLevel = TraceLevel.Warning;
     }
 
     /// <summary>
@@ -45,7 +45,7 @@ namespace PackageRunner
     {
         /// <summary />
         [Import("PackageRunnerMain", AllowDefault = true, AllowRecomposition = false, RequiredCreationPolicy = CreationPolicy.Any, Source = ImportSource.Any)]
-        public Action<string, Action<TraceLevel, string>> RunAssembly { get; set; }
+        public Action<string, Func<TraceLevel, string, bool>> RunAssembly { get; set; }
 
         /// <summary />
         private const string NuGetRepository = "https://www.nuget.org/api/v2/";
@@ -54,6 +54,8 @@ namespace PackageRunner
         /// </summary>
         private static int Main(string[] args)
         {
+            var traceWriter = Program.CreateTraceWriter(TraceLevel.Warning);
+            
             try
             {
                 var packageRunnerAssembly = Assembly.GetExecutingAssembly();
@@ -66,10 +68,10 @@ namespace PackageRunner
             }
             catch (Exception ex)
             {
-                Program.WriteDiagnosticsMessage(TraceLevel.Error, ex.Message);
+                traceWriter(TraceLevel.Error, ex.Message);
                 if (ex.InnerException != null)
                 {
-                    Program.WriteDiagnosticsMessage(TraceLevel.Error, ex.InnerException.Message);
+                    traceWriter(TraceLevel.Error, ex.InnerException.Message);
                 }
                 return -1;
             }
@@ -98,23 +100,22 @@ namespace PackageRunner
             }
 
             // Verify that assembly is signed and uses the correct key
-            var verbose = parameters.VerboseLog;
-            Action<string> writeVerboseMessage = message => Program.WriteDiagnosticsMessage(verbose ? TraceLevel.Verbose : TraceLevel.Off, message);
-            writeVerboseMessage("Checking assembly strong name.");
+            var traceWriter = Program.CreateTraceWriter(parameters.TraceLevel);
+            traceWriter(TraceLevel.Verbose, "Checking assembly strong name.");
             if (!packageRunnerAssembly.HasValidStrongName())
             {
-                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Unsigned assembly!");
+                traceWriter(TraceLevel.Error, "Unsigned assembly!");
                 return 1;
             }
-            writeVerboseMessage("Verifying assembly signature.");
+            traceWriter(TraceLevel.Verbose, "Verifying assembly signature.");
             if (!packageRunnerAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
             {
-                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Invalid assembly!");
+                traceWriter(TraceLevel.Error, "Invalid assembly!");
                 return 2;
             }
 
             // If no JSON config file name provided as paramter uses the application name
-            writeVerboseMessage("Looking for JSON config file.");
+            traceWriter(TraceLevel.Verbose, "Looking for JSON config file.");
             var configFile = Path.Combine(packageRunnerExeDirectory, Path.GetFileNameWithoutExtension(packageRunnerExeFileName) + ".json");
             if (!string.IsNullOrEmpty(parameters.Config))
             {
@@ -129,11 +130,11 @@ namespace PackageRunner
             var configuration = new Configuration();
             if (File.Exists(configFile))
             {
-                writeVerboseMessage("Reading the JSON config file.");
+                traceWriter(TraceLevel.Verbose, "Reading the JSON config file.");
                 var configJson = File.ReadAllText(configFile);
                 var jsonSerializer = new JavaScriptSerializer();
                 configuration = jsonSerializer.Deserialize<Configuration>(configJson) ?? configuration;
-                writeVerboseMessage("JSON config file loaded.");
+                traceWriter(TraceLevel.Verbose, "JSON config file loaded.");
             }
 
             // Merges config file and command line parameters. Command line paramters have precedence.
@@ -143,15 +144,15 @@ namespace PackageRunner
             configuration.repositoryUsername = parameters.RepositoryUsername ?? configuration.repositoryUsername;
             configuration.repositoryPassword = parameters.RepositoryPassword ?? configuration.repositoryPassword;
 
-            writeVerboseMessage("Checking input parameters.");
+            traceWriter(TraceLevel.Verbose, "Checking input parameters.");
             if (string.IsNullOrWhiteSpace(configuration.package) && string.IsNullOrEmpty(configuration.token))
             {
-                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Invalid configuration!");
+                traceWriter(TraceLevel.Error, "Invalid configuration!");
                 return 3;
             }
 
             // Initializes NuGet repositories
-            writeVerboseMessage("Initializing NuGet repositories.");
+            traceWriter(TraceLevel.Verbose, "Initializing NuGet repositories.");
             var nugetRepository = new DataServicePackageRepository(new Uri(NuGetRepository));
             var aggregateRepository = new AggregateRepository(new[] { nugetRepository });
             if (Uri.IsWellFormedUriString(configuration.repository, UriKind.Absolute))
@@ -170,7 +171,7 @@ namespace PackageRunner
             // Perform auto-update if not disabled
             if (!parameters.DisableUpdates)
             {
-                writeVerboseMessage("Checking for self update.");
+                traceWriter(TraceLevel.Verbose, "Checking for self update.");
                 var packageRunnerAssemblyName = packageRunnerAssembly.GetName();
                 var version = new SemanticVersion(packageRunnerAssemblyName.Version);
                 var package = aggregateRepository
@@ -180,7 +181,7 @@ namespace PackageRunner
 
                 if (package != null && package.Version > version)
                 {
-                    writeVerboseMessage("Newer version found. Updating files.");
+                    traceWriter(TraceLevel.Verbose, "Newer version found. Updating files.");
                     var filename = Path.GetFileName(packageRunnerExeFileName);
                     var file = package.GetFiles().FirstOrDefault(f => !string.IsNullOrEmpty(f.Path) && Path.GetFileName(f.Path).Equals(filename, StringComparison.OrdinalIgnoreCase));
                     if (file != null)
@@ -197,18 +198,18 @@ namespace PackageRunner
                 }
                 else
                 {
-                    writeVerboseMessage("Version is up to date.");
+                    traceWriter(TraceLevel.Verbose, "Version is up to date.");
                 }
             }
 
             // Install the package to run including its dependencies
-            writeVerboseMessage("Checking for execution package.");
+            traceWriter(TraceLevel.Verbose, "Checking for execution package.");
             var packagesPath = Path.Combine(packageRunnerExeDirectory, "packages");
             var remotePackage = aggregateRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             var localRepository = new SharedPackageRepository(packagesPath);
             if (!localRepository.Exists(remotePackage))
             {
-                writeVerboseMessage("Execution package not found localy. Installing remote.");
+                traceWriter(TraceLevel.Verbose, "Execution package not found localy. Installing remote.");
                 var packageManager = new PackageManager(aggregateRepository, packagesPath);
                 packageManager.InstallPackage(remotePackage, ignoreDependencies: false, allowPrereleaseVersions: false);
             }
@@ -216,12 +217,12 @@ namespace PackageRunner
             var localPackage = localRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             if (localPackage == null)
             {
-                Program.WriteDiagnosticsMessage(TraceLevel.Error, "Package not found!");
+                traceWriter(TraceLevel.Error, "Package not found!");
                 return 4;
             }
 
             // Build a dictionary list of assemblies based on assembly fully qualified name for dynamically resolving from the loaded package
-            writeVerboseMessage("Resolving execution package dependencies.");
+            traceWriter(TraceLevel.Verbose, "Resolving execution package dependencies.");
             var allAssemblies = localRepository
                 .GetPackages()
                 .ToArray()
@@ -248,48 +249,59 @@ namespace PackageRunner
             using (var catalog = new AggregateCatalog(assemblies))
             using (var container = new CompositionContainer(catalog))
             {
-                writeVerboseMessage("Resolving execution package entry point.");
+                traceWriter(TraceLevel.Verbose, "Resolving execution package entry point.");
                 container.SatisfyImportsOnce(this);
                 if (this.RunAssembly == null)
                 {
-                    Program.WriteDiagnosticsMessage(TraceLevel.Error, "Execution package extry point not found!");
+                    traceWriter(TraceLevel.Error, "Execution package extry point not found!");
                     return 5;
                 }
-                writeVerboseMessage("Invoking execution package extry point.");
-                this.RunAssembly(configuration.token, Program.WriteDiagnosticsMessage);
-                writeVerboseMessage("Execution package finished successfully.");
+                traceWriter(TraceLevel.Verbose, "Invoking execution package extry point.");
+                this.RunAssembly(configuration.token, traceWriter);
+                traceWriter(TraceLevel.Verbose, "Execution package finished successfully.");
                 return 0;
             }
         }
 
         /// <summary>
         /// </summary>
-        public static void WriteDiagnosticsMessage(TraceLevel traceLevel, string message)
+        private static Func<TraceLevel, string, bool> CreateTraceWriter(TraceLevel maxLevel)
         {
-            ConsoleColor originalColor;
-            switch (traceLevel)
+            return (messageLevel, message) =>
             {
-                case TraceLevel.Off:
-                    break;
-                case TraceLevel.Error:
-                    originalColor = Console.ForegroundColor;
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.Error.WriteLine(message);
-                    Console.ForegroundColor = originalColor;
-                    break;
-                case TraceLevel.Verbose:
-                    Console.Error.WriteLine(message);
-                    break;
-                case TraceLevel.Warning:
-                    originalColor = Console.ForegroundColor;
-                    Console.ForegroundColor = ConsoleColor.Yellow;
-                    Console.WriteLine(message);
-                    Console.ForegroundColor = originalColor;
-                    break;
-                case TraceLevel.Info:
-                    Console.WriteLine(message);
-                    break;
-            }
+                if (messageLevel > maxLevel)
+                {
+                    return false;
+                }
+                if (message != null)
+                {
+                    ConsoleColor originalColor;
+                    switch (messageLevel)
+                    {
+                        case TraceLevel.Off:
+                            break;
+                        case TraceLevel.Error:
+                            originalColor = Console.ForegroundColor;
+                            Console.ForegroundColor = ConsoleColor.Red;
+                            Console.Error.WriteLine(message);
+                            Console.ForegroundColor = originalColor;
+                            break;
+                        case TraceLevel.Verbose:
+                            Console.Error.WriteLine(message);
+                            break;
+                        case TraceLevel.Warning:
+                            originalColor = Console.ForegroundColor;
+                            Console.ForegroundColor = ConsoleColor.Yellow;
+                            Console.WriteLine(message);
+                            Console.ForegroundColor = originalColor;
+                            break;
+                        case TraceLevel.Info:
+                            Console.WriteLine(message);
+                            break;
+                    }
+                }
+                return true;
+            };
         }
 
         /// <summary>
@@ -313,7 +325,13 @@ namespace PackageRunner
                 new { names = new [] {"disableupdates", "d"}, parse = new Action<string>(val => { parameters.DisableUpdates = true; } )},
                 new { names = new [] {"help", "h"}, parse = new Action<string>(val => { parameters.ShowHelp = true; } )},
                 new { names = new [] {"version", "v"}, parse = new Action<string>(val => { parameters.ShowVersion = true; } )},
-                new { names = new [] {"verbose"}, parse = new Action<string>(val => { parameters.VerboseLog = true; } )}
+                new { names = new [] {"log", "l"}, parse = new Action<string>(val =>
+                {
+                    if (!Enum.TryParse(val, true, out parameters.TraceLevel) || !Enum.IsDefined(typeof(TraceLevel), parameters.TraceLevel))
+                    {
+                        parameters.TraceLevel = TraceLevel.Warning;
+                    }
+                })}
             };
 
             foreach (var parameter in parameterDefinitions)
@@ -350,7 +368,7 @@ Where:
 -d (also --disableupdates), A switch to disable autoupdate of the {0}
 -v (also --version), Displays the {0} version and exits
 -h (also --help), Displays this help and exits
--verbose, Displays verbose progress information
+-l:Level (also --log:Level), Sets log output level: 0|Off, 1|Error, 2|Warning, 3|Info, 4|Verbose. The default is Warning.
 
 Examples:
 {0} -c:ConfigFile.json
