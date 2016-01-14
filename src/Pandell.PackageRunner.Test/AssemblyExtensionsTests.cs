@@ -7,6 +7,7 @@ using JetBrains.Annotations;
 using NUnit.Framework;
 
 using PackageRunner;
+using KeyTokenValid = PackageRunner.Token;
 
 namespace Pandell.PackageRunner.Test
 {
@@ -76,7 +77,7 @@ namespace Pandell.PackageRunner.Test
         public static void PublicKeyTokenEqualsTo_TestsAssembly_ValidatesToken()
         {
             var testsAssembly = typeof(AssemblyExtensionsTests).Assembly;
-            var equalsToValidToken = testsAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenValid);
+            var equalsToValidToken = testsAssembly.PublicKeyTokenEqualsTo(KeyTokenValid.Bytes);
             var equalsToInvalidToken = testsAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenInvalid);
 
             Assert.IsTrue(equalsToValidToken, "Test assembly public key token was expected to match valid token");
@@ -89,7 +90,7 @@ namespace Pandell.PackageRunner.Test
         public static void PublicKeyTokenEqualsTo_UnsignedAssembly_NeverMatches()
         {
             var unsignedAssembly = AssemblyExtensionsTests.LoadUnsignedAssembly();
-            var equalsToValidToken = unsignedAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenValid);
+            var equalsToValidToken = unsignedAssembly.PublicKeyTokenEqualsTo(KeyTokenValid.Bytes);
             var equalsToInvalidToken = unsignedAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenInvalid);
 
             Assert.IsFalse(equalsToValidToken, "Unsigned assembly public key token was expected to not match valid token");
@@ -101,13 +102,6 @@ namespace Pandell.PackageRunner.Test
         //**************************************************
         //* Private
         //**************************************************
-
-        //--------------------------------------------------
-        /// <summary>
-        /// Public key token of <c>(projectRoot)/src/Pandell.PackageRunner.snk</c>.
-        /// </summary>
-        [NotNull] private static readonly byte[] KeyTokenValid = { 0xc4, 0xbc, 0xda, 0xb9, 0xe3, 0xe6, 0xe7, 0xfa };
-
 
         //--------------------------------------------------
         /// <summary>

@@ -3,8 +3,10 @@
 //**************************************************
 namespace PackageRunner
 {
-    internal static class Token
+    /// <summary />
+    public static class Token
     {
+        /// <summary />
         public static readonly byte[] Bytes = { 0xc4, 0xbc, 0xda, 0xb9, 0xe3, 0xe6, 0xe7, 0xfa, };
     }
 }

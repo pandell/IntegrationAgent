@@ -95,13 +95,13 @@
             tokenBytes += "0x" + tokenString.Substring(i, 2) + ", ";
         }
         var tokenFileLines = File.ReadAllLines("Token.cs");
-        if (tokenFileLines.Length != 10)
+        if (tokenFileLines.Length != 12)
         {
             throw new InvalidOperationException("Token.cs file was not in the correct format (most likely missing or manually modified).");
         }
-        if (!tokenFileLines[7].Contains(tokenBytes))
+        if (!tokenFileLines[9].Contains(tokenBytes))
         {
-            tokenFileLines[7] = "        public static readonly byte[] Bytes = { " + tokenBytes + "};";
+            tokenFileLines[9] = "        public static readonly byte[] Bytes = { " + tokenBytes + "};";
             File.WriteAllLines("Token.cs", tokenFileLines);
             Log.LogMessage("Updating \"Token.cs\" to \"{0}\"", tokenString);
         }
