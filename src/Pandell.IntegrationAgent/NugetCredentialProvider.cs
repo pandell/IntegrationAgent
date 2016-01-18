@@ -2,7 +2,7 @@ using System;
 using System.Net;
 using NuGet;
 
-namespace PackageRunner
+namespace Pandell.IntegrationAgent
 {
     /// <summary>
     /// </summary>

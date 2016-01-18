@@ -10,7 +10,7 @@ using System.Web.Script.Serialization;
 
 using NuGet;
 
-namespace PackageRunner
+namespace Pandell.IntegrationAgent
 {
     /// <summary>
     /// </summary>
@@ -44,7 +44,7 @@ namespace PackageRunner
     internal sealed class Program
     {
         /// <summary />
-        [Import("PackageRunnerMain", AllowDefault = true, AllowRecomposition = false, RequiredCreationPolicy = CreationPolicy.Any, Source = ImportSource.Any)]
+        [Import("IntegrationAgentMain", AllowDefault = true, AllowRecomposition = false, RequiredCreationPolicy = CreationPolicy.Any, Source = ImportSource.Any)]
         public Action<string, Func<TraceLevel, string, bool>> RunAssembly { get; set; }
 
         /// <summary />
@@ -58,13 +58,13 @@ namespace PackageRunner
             
             try
             {
-                var packageRunnerAssembly = Assembly.GetExecutingAssembly();
-                var packageRunnerExeFileName = packageRunnerAssembly.GetCodeBasePath();
-                var packageRunnerExeDirectory = Path.GetDirectoryName(packageRunnerExeFileName) ?? ".";
+                var integrationAgentAssembly = Assembly.GetExecutingAssembly();
+                var integrationAgentExeFileName = integrationAgentAssembly.GetCodeBasePath();
+                var integrationAgentExeDirectory = Path.GetDirectoryName(integrationAgentExeFileName) ?? ".";
 
-                packageRunnerAssembly.EnableResolvingOfEmbeddedAssemblies();
+                integrationAgentAssembly.EnableResolvingOfEmbeddedAssemblies();
                 var program = new Program();
-                return program.Run(packageRunnerAssembly, packageRunnerExeFileName, packageRunnerExeDirectory, args);
+                return program.Run(integrationAgentAssembly, integrationAgentExeFileName, integrationAgentExeDirectory, args);
             }
             catch (Exception ex)
             {
@@ -79,14 +79,14 @@ namespace PackageRunner
 
         /// <summary>
         /// </summary>
-        private int Run(Assembly packageRunnerAssembly, string packageRunnerExeFileName, string packageRunnerExeDirectory, string[] args)
+        private int Run(Assembly integrationAgentAssembly, string integrationAgentExeFileName, string integrationAgentExeDirectory, string[] args)
         {
             var parameters = Program.ParseArguments(args);
-            var fileVersion = FileVersionInfo.GetVersionInfo(packageRunnerAssembly.Location).FileVersion;
+            var fileVersion = FileVersionInfo.GetVersionInfo(integrationAgentAssembly.Location).FileVersion;
 
             if (parameters.ShowVersion || parameters.ShowHelp)
             {
-                Console.WriteLine("PackageRunner  v" + fileVersion);
+                Console.WriteLine("IntegrationAgent  v" + fileVersion);
             }
 
             if (parameters.ShowHelp)
@@ -102,13 +102,13 @@ namespace PackageRunner
             // Verify that assembly is signed and uses the correct key
             var traceWriter = Program.CreateTraceWriter(parameters.TraceLevel);
             traceWriter(TraceLevel.Verbose, "Checking assembly strong name.");
-            if (!packageRunnerAssembly.HasValidStrongName())
+            if (!integrationAgentAssembly.HasValidStrongName())
             {
                 traceWriter(TraceLevel.Error, "Unsigned assembly!");
                 return 1;
             }
             traceWriter(TraceLevel.Verbose, "Verifying assembly signature.");
-            if (!packageRunnerAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
+            if (!integrationAgentAssembly.PublicKeyTokenEqualsTo(Token.Bytes))
             {
                 traceWriter(TraceLevel.Error, "Invalid assembly!");
                 return 2;
@@ -116,14 +116,14 @@ namespace PackageRunner
 
             // If no JSON config file name provided as paramter uses the application name
             traceWriter(TraceLevel.Verbose, "Looking for JSON config file.");
-            var configFile = Path.Combine(packageRunnerExeDirectory, Path.GetFileNameWithoutExtension(packageRunnerExeFileName) + ".json");
+            var configFile = Path.Combine(integrationAgentExeDirectory, Path.GetFileNameWithoutExtension(integrationAgentExeFileName) + ".json");
             if (!string.IsNullOrEmpty(parameters.Config))
             {
                 if (!parameters.Config.EndsWith(".json"))
                 {
                     parameters.Config = parameters.Config + ".json";
                 }
-                configFile = Path.Combine(packageRunnerExeDirectory, parameters.Config);
+                configFile = Path.Combine(integrationAgentExeDirectory, parameters.Config);
             }
 
             // Check and reads the configuration file
@@ -172,27 +172,27 @@ namespace PackageRunner
             if (!parameters.DisableUpdates)
             {
                 traceWriter(TraceLevel.Verbose, "Checking for self update.");
-                var packageRunnerAssemblyName = packageRunnerAssembly.GetName();
-                var version = new SemanticVersion(packageRunnerAssemblyName.Version);
+                var integrationAgentAssemblyName = integrationAgentAssembly.GetName();
+                var version = new SemanticVersion(integrationAgentAssemblyName.Version);
                 var package = aggregateRepository
-                    .GetUpdates(new[] { new PackageName(packageRunnerAssemblyName.Name, version) }, includePrerelease: false, includeAllVersions: false)
+                    .GetUpdates(new[] { new PackageName(integrationAgentAssemblyName.Name, version) }, includePrerelease: false, includeAllVersions: false)
                     .OrderBy(p => p.Version)
                     .LastOrDefault();
 
                 if (package != null && package.Version > version)
                 {
                     traceWriter(TraceLevel.Verbose, "Newer version found. Updating files.");
-                    var filename = Path.GetFileName(packageRunnerExeFileName);
+                    var filename = Path.GetFileName(integrationAgentExeFileName);
                     var file = package.GetFiles().FirstOrDefault(f => !string.IsNullOrEmpty(f.Path) && Path.GetFileName(f.Path).Equals(filename, StringComparison.OrdinalIgnoreCase));
                     if (file != null)
                     {
-                        File.Delete(packageRunnerExeFileName + ".bak");
-                        File.Move(packageRunnerExeFileName, packageRunnerExeFileName + ".bak");
-                        using (Stream fromStream = file.GetStream(), toStream = File.Create(packageRunnerExeFileName))
+                        File.Delete(integrationAgentExeFileName + ".bak");
+                        File.Move(integrationAgentExeFileName, integrationAgentExeFileName + ".bak");
+                        using (Stream fromStream = file.GetStream(), toStream = File.Create(integrationAgentExeFileName))
                         {
                             fromStream.CopyTo(toStream);
                         }
-                        Process.Start(packageRunnerExeFileName, string.Join(" ", args) + " -disableupdates");
+                        Process.Start(integrationAgentExeFileName, string.Join(" ", args) + " -disableupdates");
                         Environment.Exit(0);
                     }
                 }
@@ -204,7 +204,7 @@ namespace PackageRunner
 
             // Install the package to run including its dependencies
             traceWriter(TraceLevel.Verbose, "Checking for execution package.");
-            var packagesPath = Path.Combine(packageRunnerExeDirectory, "packages");
+            var packagesPath = Path.Combine(integrationAgentExeDirectory, "packages");
             var remotePackage = aggregateRepository.FindPackagesById(configuration.package).OrderBy(p => p.Version).LastOrDefault();
             var localRepository = new SharedPackageRepository(packagesPath);
             if (!localRepository.Exists(remotePackage))
@@ -373,7 +373,7 @@ Where:
 Examples:
 {0} -c:ConfigFile.json
 {0} -p:Package.Name -t:eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9
-", "PackageRunner ");
+", "IntegrationAgent");
         }
 
     }

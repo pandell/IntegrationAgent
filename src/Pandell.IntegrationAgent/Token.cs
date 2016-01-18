@@ -1,7 +1,7 @@
 //**************************************************
 //* IMPORTANT: This file is modified during build process. Don't modify it unless build script is changed as well.
 //**************************************************
-namespace PackageRunner
+namespace Pandell.IntegrationAgent
 {
     /// <summary />
     public static class Token

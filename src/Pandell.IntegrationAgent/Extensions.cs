@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace PackageRunner
+namespace Pandell.IntegrationAgent
 {
     /// <summary>
     /// </summary>

@@ -9,7 +9,7 @@ using System.Resources;
 
 [assembly: AssemblyVersion("1.5.0.0")] // for more discussion on versioning see http://stackoverflow.com/questions/62353/what-are-the-best-practices-for-using-assembly-attributes (and its followup)
 [assembly: AssemblyFileVersion("1.5.0.0")]
-[assembly: AssemblyProduct("Pandell PackageRunner "
+[assembly: AssemblyProduct("Pandell IntegrationAgent "
 #if DEBUG
     + "(debug)"
 #else

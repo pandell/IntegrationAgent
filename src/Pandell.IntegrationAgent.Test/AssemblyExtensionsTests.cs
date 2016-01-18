@@ -6,10 +6,9 @@ using JetBrains.Annotations;
 
 using NUnit.Framework;
 
-using PackageRunner;
-using KeyTokenValid = PackageRunner.Token;
+using KeyTokenValid = Pandell.IntegrationAgent.Token;
 
-namespace Pandell.PackageRunner.Test
+namespace Pandell.IntegrationAgent.Test
 {
 
     /// <summary>
@@ -20,12 +19,12 @@ namespace Pandell.PackageRunner.Test
 
         //--------------------------------------------------
         [Test]
-        public static void EnableResolvingOfEmbeddedAssemblies_PackageRunnerAssembly_ProvidesAssembliesNotOnDisk()
+        public static void EnableResolvingOfEmbeddedAssemblies_IntegrationAgentAssembly_ProvidesAssembliesNotOnDisk()
         {
-            var packageRunnerAssembly = typeof(AssemblyExtensions).Assembly;
-            packageRunnerAssembly.EnableResolvingOfEmbeddedAssemblies();
+            var integrationAgentAssembly = typeof(AssemblyExtensions).Assembly;
+            integrationAgentAssembly.EnableResolvingOfEmbeddedAssemblies();
 
-            Assert.IsTrue(File.Exists(Path.Combine(Environment.CurrentDirectory, "PackageRunner.exe")), "PackageRunner.exe should exist in the current directory");
+            Assert.IsTrue(File.Exists(Path.Combine(Environment.CurrentDirectory, "IntegrationAgent.exe")), "IntegrationAgent.exe should exist in the current directory");
             Assert.IsFalse(File.Exists(Path.Combine(Environment.CurrentDirectory, "Microsoft.Web.XmlTransform.dll")), "Microsoft.Web.XmlTransform.dll should NOT exist in the current directory");
             Assert.IsNotNull(Assembly.Load("Microsoft.Web.XmlTransform"), "Microsoft.Web.XmlTransform.dll should be available even though it is not on disk");
         }
@@ -33,22 +32,22 @@ namespace Pandell.PackageRunner.Test
 
         //--------------------------------------------------
         [Test]
-        public static void GetCodeBasePath_PackageRunnerAssembly_GetsCurrentDirectoryAndExpectedExeName()
+        public static void GetCodeBasePath_IntegrationAgentAssembly_GetsCurrentDirectoryAndExpectedExeName()
         {
-            var packageRunnerAssembly = typeof(AssemblyExtensions).Assembly;
-            var codeBasePath = packageRunnerAssembly.GetCodeBasePath();
+            var integrationAgentAssembly = typeof(AssemblyExtensions).Assembly;
+            var codeBasePath = integrationAgentAssembly.GetCodeBasePath();
 
             StringAssert.AreEqualIgnoringCase(Environment.CurrentDirectory, Path.GetDirectoryName(codeBasePath));
-            StringAssert.AreEqualIgnoringCase("PackageRunner.exe", Path.GetFileName(codeBasePath));
+            StringAssert.AreEqualIgnoringCase("IntegrationAgent.exe", Path.GetFileName(codeBasePath));
         }
 
 
         ////--------------------------------------------------
         [Test]
-        public static void HasValidStrongName_PackageRunnerAssembly_Succeeds()
+        public static void HasValidStrongName_IntegrationAgentAssembly_Succeeds()
         {
-            var packageRunnerAssembly = typeof(AssemblyExtensions).Assembly;
-            var hasValidStrongName = packageRunnerAssembly.HasValidStrongName();
+            var integrationAgentAssembly = typeof(AssemblyExtensions).Assembly;
+            var hasValidStrongName = integrationAgentAssembly.HasValidStrongName();
 
             Assert.IsTrue(hasValidStrongName, "Package runner assembly should be signed");
         }
@@ -67,7 +66,7 @@ namespace Pandell.PackageRunner.Test
 
         //--------------------------------------------------
         /// <summary>
-        /// We cannot use PackageRunner assembly, because it
+        /// We cannot use IntegrationAgent assembly, because it
         /// will be signed with different key (the real Pandell
         /// one) on TeamCity (where this test will also run).
         /// The test assembly, however, will always be signed
@@ -117,7 +116,7 @@ namespace Pandell.PackageRunner.Test
         /// </summary>
         [NotNull] private static Assembly LoadUnsignedAssembly()
         {
-            const string unsignedAssemblyFileName = "../../src/Pandell.PackageRunner.Test/AssemblyExtensionsTests_UnsignedAssembly.dll";
+            const string unsignedAssemblyFileName = "../../src/Pandell.IntegrationAgent.Test/AssemblyExtensionsTests_UnsignedAssembly.dll";
             Assert.IsTrue(File.Exists(unsignedAssemblyFileName), "Unsigned assembly is missing");
 
             return Assembly.LoadFrom(unsignedAssemblyFileName);

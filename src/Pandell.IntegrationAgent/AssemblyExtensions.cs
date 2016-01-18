@@ -5,16 +5,14 @@ using System.Reflection;
 
 using JetBrains.Annotations;
 
-using NuGet;
-
-namespace PackageRunner
+namespace Pandell.IntegrationAgent
 {
 
     /// <summary>
     /// Extension methods for <see cref="Assembly"/> instances.
     /// </summary>
     /// <remarks>
-    /// Unit tested in <c>Pandell.PackageRunner.Test.AssemblyExtensionsTests.</c>
+    /// Unit tested in <c>Pandell.IntegrationAgent.Test.AssemblyExtensionsTests.</c>
     /// </remarks>
     public static class AssemblyExtensions
     {
@@ -113,7 +111,7 @@ namespace PackageRunner
             if (assembly == null) { throw new ArgumentNullException("assembly"); }
 
             bool wasVerified;
-            return AssemblyExtensions.VerifySignatureMethod(assembly.Location, true, out wasVerified) && wasVerified;
+            return VerifySignatureMethod(assembly.Location, true, out wasVerified) && wasVerified;
         }
 
 

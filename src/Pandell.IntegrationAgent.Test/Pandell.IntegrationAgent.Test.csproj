@@ -7,13 +7,13 @@
     <ProjectGuid>{5D98ADE7-A84F-480F-A1EA-3620AFFAADA6}</ProjectGuid>
     <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Pandell.PackageRunner.Test</RootNamespace>
-    <AssemblyName>Pandell.PackageRunner.Test</AssemblyName>
+    <RootNamespace>Pandell.IntegrationAgent.Test</RootNamespace>
+    <AssemblyName>Pandell.IntegrationAgent.Test</AssemblyName>
     <TargetFrameworkVersion>v4.5.1</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile>..\Pandell.PackageRunner.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile>..\Pandell.IntegrationAgent.snk</AssemblyOriginatorKeyFile>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <NoWarn />
@@ -36,9 +36,9 @@
     <DefineConstants>CODE_ANALYSIS;TRACE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Pandell.PackageRunner\Pandell.PackageRunner.csproj">
+    <ProjectReference Include="..\Pandell.IntegrationAgent\Pandell.IntegrationAgent.csproj">
       <Project>{7417D3FF-4794-406A-B2B5-073332B72511}</Project>
-      <Name>Pandell.PackageRunner</Name>
+      <Name>Pandell.IntegrationAgent</Name>
     </ProjectReference>
     <Reference Include="JetBrains.Annotations">
       <HintPath>..\..\nuget_modules\JetBrains.Annotations.10.0.0\lib\net20\JetBrains.Annotations.dll</HintPath>
@@ -66,8 +66,8 @@
     <Compile Include="..\AssemblyVersionInfo.cs">
       <Link>Properties\AssemblyVersionInfo.cs</Link>
     </Compile>
-    <None Include="..\Pandell.PackageRunner.snk">
-      <Link>Properties\Pandell.PackageRunner.snk</Link>
+    <None Include="..\Pandell.IntegrationAgent.snk">
+      <Link>Properties\Pandell.IntegrationAgent.snk</Link>
     </None>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

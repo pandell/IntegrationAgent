@@ -7,13 +7,13 @@
     <ProjectGuid>{7417D3FF-4794-406A-B2B5-073332B72511}</ProjectGuid>
     <OutputType>Exe</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>PackageRunner</RootNamespace>
-    <AssemblyName>PackageRunner</AssemblyName>
+    <RootNamespace>Pandell.IntegrationAgent</RootNamespace>
+    <AssemblyName>IntegrationAgent</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <SignAssembly>true</SignAssembly>
-    <AssemblyOriginatorKeyFile Condition=" '$(AssemblyOriginatorFile)' == '' ">..\Pandell.PackageRunner.snk</AssemblyOriginatorKeyFile>
+    <AssemblyOriginatorKeyFile Condition=" '$(AssemblyOriginatorFile)' == '' ">..\Pandell.IntegrationAgent.snk</AssemblyOriginatorKeyFile>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
     <NoWarn />
@@ -75,8 +75,8 @@
     <EmbeddedResource Include="..\..\nuget_modules\NuGet.Core.2.8.6\lib\net40-Client\NuGet.Core.dll">
       <Link>Properties\NuGet.Core.dll</Link>
     </EmbeddedResource>
-    <None Include="..\Pandell.PackageRunner.snk">
-      <Link>Properties\Pandell.PackageRunner.snk</Link>
+    <None Include="..\Pandell.IntegrationAgent.snk">
+      <Link>Properties\Pandell.IntegrationAgent.snk</Link>
     </None>
     <Compile Include="Token.cs" />
   </ItemGroup>
@@ -119,8 +119,8 @@
       <SNPath>$([System.Text.RegularExpressions.Regex]::Replace('$(SNPath)', ';.*', ''))</SNPath>
     </PropertyGroup>
     <MakeDir Directories="$(BaseIntermediateOutputPath)$(Configuration)" />
-    <Exec Command="&quot;$(SNPath)&quot; -q -p &quot;$(AssemblyOriginatorKeyFile)&quot; $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" />
-    <Exec Command="&quot;$(SNPath)&quot; -q -t $(BaseIntermediateOutputPath)$(Configuration)\Pandell.PackageRunner.pub" ConsoleToMSBuild="true">
+    <Exec Command="&quot;$(SNPath)&quot; -q -p &quot;$(AssemblyOriginatorKeyFile)&quot; $(BaseIntermediateOutputPath)$(Configuration)\Pandell.IntegrationAgent.pub" />
+    <Exec Command="&quot;$(SNPath)&quot; -q -t $(BaseIntermediateOutputPath)$(Configuration)\Pandell.IntegrationAgent.pub" ConsoleToMSBuild="true">
       <Output TaskParameter="ConsoleOutput" PropertyName="Token" />
     </Exec>
     <UpdateTokenFile Token="$(Token)" />
