@@ -57,7 +57,7 @@ namespace Pandell.IntegrationAgent.Test
         [Test]
         public static void HasValidStrongName_UnsignedAssembly_Fails()
         {
-            var unsignedAssembly = AssemblyExtensionsTests.LoadUnsignedAssembly();
+            var unsignedAssembly = LoadUnsignedAssembly();
             var hasValidStrongName = unsignedAssembly.HasValidStrongName();
 
             Assert.IsFalse(hasValidStrongName, "Unsigned assembly should not be signed");
@@ -76,8 +76,8 @@ namespace Pandell.IntegrationAgent.Test
         public static void PublicKeyTokenEqualsTo_TestsAssembly_ValidatesToken()
         {
             var testsAssembly = typeof(AssemblyExtensionsTests).Assembly;
-            var equalsToValidToken = testsAssembly.PublicKeyTokenEqualsTo(KeyTokenValid.Bytes);
-            var equalsToInvalidToken = testsAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenInvalid);
+            var equalsToValidToken = testsAssembly.PublicKeyTokenEqualsTo(Token.Bytes);
+            var equalsToInvalidToken = testsAssembly.PublicKeyTokenEqualsTo(KeyTokenInvalid);
 
             Assert.IsTrue(equalsToValidToken, "Test assembly public key token was expected to match valid token");
             Assert.IsFalse(equalsToInvalidToken, "Test assembly public key token was expected to not match invalid token");
@@ -88,9 +88,9 @@ namespace Pandell.IntegrationAgent.Test
         [Test]
         public static void PublicKeyTokenEqualsTo_UnsignedAssembly_NeverMatches()
         {
-            var unsignedAssembly = AssemblyExtensionsTests.LoadUnsignedAssembly();
-            var equalsToValidToken = unsignedAssembly.PublicKeyTokenEqualsTo(KeyTokenValid.Bytes);
-            var equalsToInvalidToken = unsignedAssembly.PublicKeyTokenEqualsTo(AssemblyExtensionsTests.KeyTokenInvalid);
+            var unsignedAssembly = LoadUnsignedAssembly();
+            var equalsToValidToken = unsignedAssembly.PublicKeyTokenEqualsTo(Token.Bytes);
+            var equalsToInvalidToken = unsignedAssembly.PublicKeyTokenEqualsTo(KeyTokenInvalid);
 
             Assert.IsFalse(equalsToValidToken, "Unsigned assembly public key token was expected to not match valid token");
             Assert.IsFalse(equalsToInvalidToken, "Unsigned assembly public key token was expected to not match invalid token");
